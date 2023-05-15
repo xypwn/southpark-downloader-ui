@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 
 NAME="$(go list -m)"
-SRCDIR="./cmd/southpark-de-downloader"
+SRCDIR="./cmd/southpark-downloader-ui"
 BUILDDIR="build"
 
 [ "$1" = "clean" ] && echo "Cleaning $BUILDDIR" && rm -rf "$BUILDDIR" && exit 0
@@ -23,6 +23,18 @@ build() {
 	env GOOS="$OS" GOARCH="$ARCH" CC="$CC" CGO_ENABLED=1 go build -ldflags "-s -w" -o "$BUILDDIR/$NAME-$OS-$ARCH$EXT" "$SRCDIR"
 }
 
+build_android() {
+	echo "Building for Android"
+
+	mkdir -p "$BUILDDIR"
+
+	cd "$SRCDIR"
+	./package_android.sh
+	cd -
+
+	mv "$SRCDIR/Southpark_Downloader.apk" "$BUILDDIR/$NAME.apk"
+}
+
 #build linux 386 cc &
 build linux amd64 cc &
 #build linux arm cc &
@@ -30,5 +42,6 @@ build linux amd64 cc &
 #build darwin amd64 &
 #build windows 386 winegcc &
 build windows amd64 x86_64-w64-mingw32-cc &
+build_android &
 
 wait
