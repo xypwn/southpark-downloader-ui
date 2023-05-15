@@ -26,6 +26,7 @@ type GUIState struct {
 	SelectedLanguage sp.Language
 	SelectedSeason   *Season
 	EpisodeLists     *union.Union
+	SeasonLists      *union.Union
 }
 
 func (s *GUIState) getSelectedLanguage() sp.Language {
@@ -65,12 +66,41 @@ func (g *GUI) makeGUI() fyne.CanvasObject {
 func (g *GUI) makeEpisodesPanel() fyne.CanvasObject {
 	search := g.makeEpisodeSearch()
 	episodeLists := union.New()
+	seasonLists := union.New()
 
 	g.State.Lock()
 	g.State.EpisodeLists = episodeLists
+	g.State.SeasonLists = seasonLists
 	g.State.Unlock()
 
-	seasons := g.makeSeasonsList()
+
+	languageSelect := widget.NewSelect(
+		[]string{
+			sp.LanguageEnglish.String(),
+			sp.LanguageGerman.String(),
+		}, func(languageStr string) {
+			language, ok := sp.LanguageFromString(languageStr)
+			if !ok {
+				panic("logic error: nonexistent language selected")
+			}
+			if !seasonLists.Contains(languageStr) {
+				seasons := g.makeSeasonsList(language)
+				seasonLists.Add(
+					union.NewItem(languageStr, seasons),
+				)
+			}
+			seasonLists.SetActive(languageStr)
+		})
+
+	languageSelect.SetSelected(sp.LanguageEnglish.String())
+
+	seasons := container.NewBorder(
+		languageSelect,
+		nil,
+		nil,
+		nil,
+		seasonLists,
+	)
 
 	var mainCnt fyne.CanvasObject
 	if fyne.CurrentDevice().IsMobile() {
@@ -101,19 +131,24 @@ func (g *GUI) makeEpisodeSearch() fyne.CanvasObject {
 	return search
 }
 
-func (g *GUI) makeSeasonsList() fyne.CanvasObject {
+func (g *GUI) makeSeasonsList(language sp.Language) fyne.CanvasObject {
 	return fetchableresource.New(
 		context.Background(),
 		makeProgressBarInfiniteTop(),
 		func(ctx context.Context) (any, error) {
-			language := g.State.getSelectedLanguage()
-			if g.Cache.Seasons[language] == nil {
+			g.Cache.Lock()
+			seasons := g.Cache.Seasons[language]
+			g.Cache.Unlock()
+			if seasons == nil {
 				err := g.Cache.UpdateSeasons(ctx, language)
 				if err != nil {
 					return nil, err
 				}
+				g.Cache.Lock()
+				seasons = g.Cache.Seasons[language]
+				g.Cache.Unlock()
 			}
-			return g.Cache.Seasons[language], nil
+			return seasons, nil
 		},
 		func(resource any) fyne.CanvasObject {
 			seasons := resource.([]Season)

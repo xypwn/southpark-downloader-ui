@@ -34,14 +34,26 @@ const (
 	LanguageGerman
 )
 
+func LanguageFromString(s string) (lang Language, ok bool) {
+	switch s {
+	case LanguageEnglish.String():
+		return LanguageEnglish, true
+	case LanguageGerman.String():
+		return LanguageGerman, true
+	default:
+		return 0, false
+	}
+}
+
 func (l Language) String() string {
 	switch l {
 	case LanguageEnglish:
 		return "English"
 	case LanguageGerman:
 		return "German"
+	default:
+		panic("Language.String called on invalid language")
 	}
-	panic("Language.String called on invalid language")
 }
 
 type RegionInfo struct {
