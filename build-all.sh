@@ -1,47 +1,47 @@
 #!/usr/bin/env sh
+if ! uname -s | grep -i "linux" > /dev/null; then
+	echo "This script is supposed to be run on Linux!"
+	exit 1
+fi
 
-NAME="$(go list -m)"
-SRCDIR="./cmd/southpark-downloader-ui"
-BUILDDIR="build"
+export ANDROID_NDK_HOME=/opt/android-ndk
+export MACOS_SDK="$PWD/MacOSX10.15.sdk"
 
-[ "$1" = "clean" ] && echo "Cleaning $BUILDDIR" && rm -rf "$BUILDDIR" && exit 0
+APPID="org.nobrain.southparkdownloaderui"
+NAME="southpark-downloader-ui"
+ICON="./cmd/southpark-downloader-ui/Icon.png"
+SRC="./cmd/southpark-downloader-ui"
 
-build() {
-	# [linux|dragonfly|freebsd|netbsd|openbsd|plan9|solaris|darwin|windows]"
-	OS="$1"
-	# [arm|arm64|ppc64|ppc64le|mips64|386|amd64]
-	ARCH="$2"
-	# compiler executable, for example cc or x86_64-w64-mingw32-cc
-	CC="$3"
-
-	echo "Building for $OS on $ARCH using $CC"
-
-	[ "$OS" = "windows" ] && EXT=".exe"
-
-	mkdir -p "$BUILDDIR"
-
-	env GOOS="$OS" GOARCH="$ARCH" CC="$CC" CGO_ENABLED=1 go build -ldflags "-s -w" -o "$BUILDDIR/$NAME-$OS-$ARCH$EXT" "$SRCDIR"
+cross_compile() {
+	fyne-cross "$@" \
+		-app-id "$APPID" \
+		-name "$NAME" \
+		-icon "$ICON" \
+		"$SRC"
 }
 
-build_android() {
-	echo "Building for Android"
-
-	mkdir -p "$BUILDDIR"
-
-	cd "$SRCDIR"
-	./package_android.sh
+compile() {
+	cd "$SRC"
+	fyne package "$@" \
+		--release \
+		--appID "$APPID" \
+		--name "$NAME" \
+		--icon "../../$ICON"
 	cd -
-
-	mv "$SRCDIR/Southpark_Downloader.apk" "$BUILDDIR/$NAME.apk"
 }
 
-#build linux 386 cc &
-build linux amd64 cc &
-#build linux arm cc &
-#build linux arm64 cc &
-#build darwin amd64 &
-#build windows 386 winegcc &
-build windows amd64 x86_64-w64-mingw32-cc &
-build_android &
+compile || exit 1
+compile --target android || exit 1
+cross_compile windows || exit 1
+cross_compile darwin -macosx-sdk-path "$MACOS_SDK" || exit 1
 
-wait
+mkdir -p build
+mv "$SRC/southpark-downloader-ui.tar.xz" "build/$NAME-linux-install.tar.xz"
+mv "$SRC/southpark_downloader_ui.apk" "build/$(echo "$NAME" | tr - _)_android.apk"
+mv "fyne-cross/bin/windows-amd64/southpark-downloader-ui.exe" "build/$NAME-windows.exe"
+mv "fyne-cross/bin/darwin-amd64/southpark-downloader-ui" "build/$NAME-macos-x64"
+
+TMPDIR="$(mktemp -d)"
+tar -xf "build/$NAME-linux-install.tar.xz" -C "$TMPDIR" "usr/local/bin/southpark-downloader-ui"
+mv "$TMPDIR/usr/local/bin/southpark-downloader-ui" "build/$NAME-linux-standalone"
+rm -rf "$TMPDIR"
