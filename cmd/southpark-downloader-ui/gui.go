@@ -67,11 +67,14 @@ func (g *GUI) makeEpisodesPanel() fyne.CanvasObject {
 	g.State.Unlock()
 
 
+	var availableLanguages []string
+	for _, v := range g.Cache.Region.AvailableLanguages {
+		availableLanguages = append(availableLanguages, v.String())
+	}
+
 	languageSelect := widget.NewSelect(
-		[]string{
-			sp.LanguageEnglish.String(),
-			sp.LanguageGerman.String(),
-		}, func(languageStr string) {
+		availableLanguages,
+		func(languageStr string) {
 			language, ok := sp.LanguageFromString(languageStr)
 			if !ok {
 				panic("logic error: nonexistent language selected")
