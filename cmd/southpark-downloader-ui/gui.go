@@ -23,16 +23,9 @@ import (
 
 type GUIState struct {
 	sync.RWMutex
-	SelectedLanguage sp.Language
 	SelectedSeason   *Season
 	EpisodeLists     *union.Union
 	SeasonLists      *union.Union
-}
-
-func (s *GUIState) getSelectedLanguage() sp.Language {
-	s.RLock()
-	defer s.RUnlock()
-	return s.SelectedLanguage
 }
 
 type SeasonID struct {
