@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"southpark-downloader-ui/pkg/httputils"
+	"github.com/xypwn/southpark-downloader-ui/pkg/httputils"
 
 	"github.com/yapingcat/gomedia/go-mp4"
 	"github.com/yapingcat/gomedia/go-mpeg2"

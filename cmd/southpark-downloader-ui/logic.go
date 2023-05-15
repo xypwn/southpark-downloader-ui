@@ -7,8 +7,8 @@ import (
 	"os"
 	"sync"
 
-	priosem "southpark-downloader-ui/pkg/prioritysemaphore"
-	sp "southpark-downloader-ui/pkg/southpark"
+	priosem "github.com/xypwn/southpark-downloader-ui/pkg/prioritysemaphore"
+	sp "github.com/xypwn/southpark-downloader-ui/pkg/southpark"
 
 	"fyne.io/fyne/v2/data/binding"
 )

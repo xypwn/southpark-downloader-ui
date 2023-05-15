@@ -1,4 +1,4 @@
-module southpark-downloader-ui
+module github.com/xypwn/southpark-downloader-ui
 
 go 1.18
 

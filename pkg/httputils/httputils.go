@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"southpark-downloader-ui/pkg/ioutils"
+	"github.com/xypwn/southpark-downloader-ui/pkg/ioutils"
 )
 
 func GetWithContext(ctx context.Context, url string) (*http.Response, error) {

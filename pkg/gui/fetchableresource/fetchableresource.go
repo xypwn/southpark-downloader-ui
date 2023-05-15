@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"southpark-downloader-ui/pkg/gui/union"
+	"github.com/xypwn/southpark-downloader-ui/pkg/gui/union"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"

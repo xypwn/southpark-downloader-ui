@@ -7,9 +7,9 @@ import (
 	"path"
 	"sync"
 
-	"southpark-downloader-ui/pkg/gui/fetchableresource"
-	"southpark-downloader-ui/pkg/gui/union"
-	sp "southpark-downloader-ui/pkg/southpark"
+	"github.com/xypwn/southpark-downloader-ui/pkg/gui/fetchableresource"
+	"github.com/xypwn/southpark-downloader-ui/pkg/gui/union"
+	sp "github.com/xypwn/southpark-downloader-ui/pkg/southpark"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"

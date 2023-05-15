@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"southpark-downloader-ui/pkg/httputils"
+	"github.com/xypwn/southpark-downloader-ui/pkg/httputils"
 )
 
 func getSPBaseURL(fullURL string) (string, error) {
