@@ -3,6 +3,8 @@
 
 The code is currently still quite messy, and will definitely need some more work. If you have any request or criticism in particular, feel free to open an issue.
 
+![Preview image](/preview.png)
+
 ## Running the binary
 ### Download
 [From GitHub Releases](https://github.com/xypwn/southpark-downloader-ui/releases/latest)
