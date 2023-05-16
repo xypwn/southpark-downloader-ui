@@ -43,7 +43,7 @@ type GUI struct {
 func newGUI() *GUI {
 	return &GUI{
 		Cache: Cache{
-			Seasons: make(map[sp.Language][]Season),
+			Seasons: make(map[sp.Language]Seasons),
 		},
 		Downloads: NewDownloads(3),
 	}
@@ -135,7 +135,7 @@ func (g *GUI) makeSeasonList(language sp.Language) fyne.CanvasObject {
 		makeProgressBarInfiniteTop(),
 		func(ctx context.Context) (any, error) {
 			g.Cache.Lock()
-			seasons := g.Cache.Seasons[language]
+			seasons := g.Cache.Seasons[language].Seasons
 			g.Cache.Unlock()
 			if seasons == nil {
 				updateCtx, _ := context.WithTimeout(ctx, 20 * time.Second)
@@ -144,7 +144,7 @@ func (g *GUI) makeSeasonList(language sp.Language) fyne.CanvasObject {
 					return nil, err
 				}
 				g.Cache.Lock()
-				seasons = g.Cache.Seasons[language]
+				seasons = g.Cache.Seasons[language].Seasons
 				g.Cache.Unlock()
 			}
 			return seasons, nil
@@ -231,7 +231,7 @@ func (g *GUI) makeEpisodeList(season Season, seasonIndex int) fyne.CanvasObject 
 					return nil, err
 				}
 			}
-			return g.Cache.Seasons[season.Language][seasonIndex], nil
+			return g.Cache.Seasons[season.Language].Seasons[seasonIndex], nil
 		},
 		func(resource any) fyne.CanvasObject {
 			season := resource.(Season)

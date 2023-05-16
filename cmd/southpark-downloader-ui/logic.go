@@ -16,7 +16,7 @@ import (
 type Cache struct {
 	sync.RWMutex
 	Region  sp.RegionInfo
-	Seasons map[sp.Language][]Season
+	Seasons map[sp.Language]Seasons
 }
 
 func (c *Cache) UpdateRegion(ctx context.Context) error {
@@ -36,7 +36,7 @@ func (c *Cache) UpdateSeasons(ctx context.Context, language sp.Language) error {
 	region := c.Region
 	c.RUnlock()
 
-	seasons, err := sp.GetSeasons(ctx, region, language)
+	seasons, seriesMGID, err := sp.GetSeasons(ctx, region, language)
 	if err != nil {
 		return err
 	}
@@ -52,18 +52,21 @@ func (c *Cache) UpdateSeasons(ctx context.Context, language sp.Language) error {
 
 	c.Lock()
 	defer c.Unlock()
-	c.Seasons[language] = res
+	c.Seasons[language] = Seasons{
+		Seasons: res,
+		SeriesMGID: seriesMGID,
+	}
 
 	return nil
 }
 
 func (c *Cache) UpdateEpisodes(ctx context.Context, language sp.Language, seasonIndex int) error {
 	c.RLock()
-	if seasonIndex >= len(c.Seasons[language]) {
+	if seasonIndex >= len(c.Seasons[language].Seasons) {
 		c.RUnlock()
 		return errors.New("invalid season number")
 	}
-	season := c.Seasons[language][seasonIndex]
+	season := c.Seasons[language].Seasons[seasonIndex]
 	c.RUnlock()
 
 	episodes, err := sp.GetEpisodes(ctx, season.Season)
@@ -72,10 +75,15 @@ func (c *Cache) UpdateEpisodes(ctx context.Context, language sp.Language, season
 	}
 
 	c.Lock()
-	c.Seasons[language][seasonIndex].Episodes = episodes
+	c.Seasons[language].Seasons[seasonIndex].Episodes = episodes
 	c.Unlock()
 
 	return nil
+}
+
+type Seasons struct {
+	Seasons []Season
+	SeriesMGID string
 }
 
 type Season struct {

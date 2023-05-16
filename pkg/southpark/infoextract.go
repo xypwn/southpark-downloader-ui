@@ -137,12 +137,16 @@ type websiteData struct {
 	} `json:"children"`
 }
 
-func getWebsiteDataProps(ctx context.Context, url string, containerType string, propsType string) (websiteDataProps, error) {
+func getWebsiteDataPropsFromURL(ctx context.Context, url string, containerType string, propsType string) (websiteDataProps, error) {
 	body, err := httputils.GetBodyWithContext(ctx, url)
 	if err != nil {
 		return websiteDataProps{}, err
 	}
 
+	return getWebsiteDataPropsFromBody(body, containerType, propsType)
+}
+
+func getWebsiteDataPropsFromBody(body []byte, containerType string, propsType string) (websiteDataProps, error) {
 	re := regexp.MustCompile("window.__DATA__\\s*=\\s*({.*});\n")
 	match := re.FindSubmatch(body)
 	if match == nil || len(match) != 2 {
@@ -151,7 +155,7 @@ func getWebsiteDataProps(ctx context.Context, url string, containerType string, 
 	dataJSON := match[1]
 
 	var data websiteData
-	err = json.Unmarshal(dataJSON, &data)
+	err := json.Unmarshal(dataJSON, &data)
 	if err != nil {
 		return websiteDataProps{}, fmt.Errorf("parse data JSON: %w", err)
 	}
@@ -177,7 +181,7 @@ type Season struct {
 	Language     Language
 }
 
-func GetSeasons(ctx context.Context, regionInfo RegionInfo, language Language) ([]Season, error) {
+func GetSeasons(ctx context.Context, regionInfo RegionInfo, language Language) (seasons []Season, seriesMGID string, err error) {
 	langAvailable := false
 	for _, v := range regionInfo.AvailableLanguages {
 		if v == language {
@@ -187,7 +191,7 @@ func GetSeasons(ctx context.Context, regionInfo RegionInfo, language Language) (
 	}
 
 	if !langAvailable {
-		return nil, fmt.Errorf("language '%v' not available on '%v'",
+		return nil, "", fmt.Errorf("language '%v' not available on '%v'",
 			language.String(),
 			regionInfo.Host)
 	}
@@ -200,12 +204,29 @@ func GetSeasons(ctx context.Context, regionInfo RegionInfo, language Language) (
 
 	baseURL, err := getSPBaseURL(anySeasonURL)
 	if err != nil {
-		return nil, fmt.Errorf("get base URL: %w", err)
+		return nil, "", fmt.Errorf("get base URL: %w", err)
 	}
 
-	props, err := getWebsiteDataProps(ctx, anySeasonURL, "SeasonSelector", "")
+	body, err := httputils.GetBodyWithContext(ctx, anySeasonURL)
+
+	// Retrieve series MGID
+	{
+		props, err := getWebsiteDataPropsFromBody(body, "LineList", "video-guide")
+		if err != nil {
+			return nil, "", fmt.Errorf("retrieve series MGID in website data JSON: %w", err)
+		}
+
+		if len(props.Items) == 0 {
+			return nil, "", fmt.Errorf("no series MGID found in website data JSON")
+		}
+
+		seriesMGID = props.Items[0].Meta.SeriesMGID
+	}
+
+	// Retrieve raw seasons data
+	props, err := getWebsiteDataPropsFromBody(body, "SeasonSelector", "")
 	if err != nil {
-		return nil, fmt.Errorf("get 'SeasonSelector' in website data JSON: %w", err)
+		return nil, "", fmt.Errorf("get 'SeasonSelector' in website data JSON: %w", err)
 	}
 
 	// Transform elements into our struct and return
@@ -232,7 +253,7 @@ func GetSeasons(ctx context.Context, regionInfo RegionInfo, language Language) (
 		return res[i].SeasonNumber < res[j].SeasonNumber
 	})
 
-	return res, nil
+	return res, seriesMGID, nil
 }
 
 type Episode struct {
@@ -260,7 +281,7 @@ func GetEpisodes(ctx context.Context, season Season) ([]Episode, error) {
 	// Get the 'Show More' API call URL
 	var showMoreURL string
 	{
-		props, err := getWebsiteDataProps(ctx, season.URL, "LineList", "video-guide")
+		props, err := getWebsiteDataPropsFromURL(ctx, season.URL, "LineList", "video-guide")
 		if err != nil {
 			return nil, fmt.Errorf("retrieve 'show more' URL in website data JSON: %w", err)
 		}
