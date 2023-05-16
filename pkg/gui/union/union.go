@@ -18,17 +18,22 @@ func New(items ...*UnionItem) *Union {
 		objectIdxMap: make(map[any]int),
 	}
 	for _, v := range items {
-		res.Add(v)
+		res.Set(v)
 	}
 
 	res.ExtendBaseWidget(res)
 	return res
 }
 
-func (u *Union) Add(item *UnionItem) {
-	u.objects = append(u.objects, item.CanvasObject)
-	index := len(u.objects) - 1
-	u.objectIdxMap[item.ID] = index
+func (u *Union) Set(item *UnionItem) {
+	index, ok := u.objectIdxMap[item.ID]
+	if !ok {
+		u.objects = append(u.objects, item.CanvasObject)
+		index = len(u.objects) - 1
+		u.objectIdxMap[item.ID] = index
+	} else {
+		u.objects[index] = item.CanvasObject
+	}
 }
 
 func (u *Union) Contains(id any) bool {

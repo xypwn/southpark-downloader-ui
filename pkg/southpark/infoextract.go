@@ -65,7 +65,7 @@ type RegionInfo struct {
 func GetRegionInfo(ctx context.Context) (RegionInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://southparkstudios.com", nil)
 	if err != nil {
-		return RegionInfo{}, err
+		return RegionInfo{}, fmt.Errorf("create southpark website request: %w", err)
 	}
 	var redirHost string
 	client := &http.Client{
@@ -76,7 +76,7 @@ func GetRegionInfo(ctx context.Context) (RegionInfo, error) {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return RegionInfo{}, err
+		return RegionInfo{}, fmt.Errorf("get southpark website: %w", err)
 	}
 	resp.Body.Close()
 
@@ -84,15 +84,17 @@ func GetRegionInfo(ctx context.Context) (RegionInfo, error) {
 		Host:               redirHost,
 		AvailableLanguages: []Language{LanguageEnglish},
 	}
-	switch strings.TrimPrefix(redirHost, "www.") {
+	redirHost = strings.TrimPrefix(redirHost, "www.")
+	switch redirHost {
 	case "southpark.de":
 		res.AvailableLanguages = append(res.AvailableLanguages, LanguageGerman)
 		res.RequiresExplicitEN = true
 		return res, nil
 	case "southparkstudios.com", "southparkstudios.nu", "southparkstudios.dk", "southpark.cc.com", "southpark.nl":
 		return res, nil
+	default:
+		return RegionInfo{}, fmt.Errorf("unsupported website region: %v", redirHost)
 	}
-	return RegionInfo{}, fmt.Errorf("unsupported website region: %v", redirHost)
 }
 
 type websiteDataProps struct {
@@ -151,7 +153,7 @@ func getWebsiteDataProps(ctx context.Context, url string, containerType string, 
 	var data websiteData
 	err = json.Unmarshal(dataJSON, &data)
 	if err != nil {
-		return websiteDataProps{}, err
+		return websiteDataProps{}, fmt.Errorf("parse data JSON: %w", err)
 	}
 
 	for _, v := range data.Children {
@@ -198,12 +200,12 @@ func GetSeasons(ctx context.Context, regionInfo RegionInfo, language Language) (
 
 	baseURL, err := getSPBaseURL(anySeasonURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get base URL: %w", err)
 	}
 
 	props, err := getWebsiteDataProps(ctx, anySeasonURL, "SeasonSelector", "")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get 'SeasonSelector' in website data JSON: %w", err)
 	}
 
 	// Transform elements into our struct and return
@@ -252,7 +254,7 @@ func (e Episode) GetThumbnailURL(width uint, height uint, crop bool) string {
 func GetEpisodes(ctx context.Context, season Season) ([]Episode, error) {
 	baseURL, err := getSPBaseURL(season.URL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get base URL: %w", err)
 	}
 
 	// Get the 'Show More' API call URL
@@ -260,7 +262,7 @@ func GetEpisodes(ctx context.Context, season Season) ([]Episode, error) {
 	{
 		props, err := getWebsiteDataProps(ctx, season.URL, "LineList", "video-guide")
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("retrieve 'show more' URL in website data JSON: %w", err)
 		}
 
 		index := props.Filters.SelectedIndex
@@ -276,13 +278,13 @@ func GetEpisodes(ctx context.Context, season Season) ([]Episode, error) {
 	{
 		body, err := httputils.GetBodyWithContext(ctx, baseURL+showMoreURL)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("get episodes: %w", err)
 		}
 
 		var props websiteDataProps
 		err = json.Unmarshal(body, &props)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse episodes from JSON: %w", err)
 		}
 
 		for _, v := range props.Items {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/xypwn/southpark-downloader-ui/pkg/gui/union"
 
@@ -16,8 +17,12 @@ type FetchableResource struct {
 
 	mtx        sync.Mutex
 	ctx        context.Context
-	isCanceled bool
+	fetching atomic.Bool
+	fetch func(context.Context) (any, error)
+	makeContent func(any) fyne.CanvasObject
+	makeErrContent func(error) fyne.CanvasObject
 	err        error
+	onErr      func(error)
 	content    *union.Union
 }
 
@@ -26,58 +31,79 @@ func New(
 	loading fyne.CanvasObject,
 	fetch func(context.Context) (any, error),
 	makeContent func(any) fyne.CanvasObject,
-	canceled fyne.CanvasObject,
+	makeErrContent func(error) fyne.CanvasObject,
 ) *FetchableResource {
 	res := &FetchableResource{
 		ctx: ctx,
+		fetch: fetch,
+		makeContent: makeContent,
+		makeErrContent: makeErrContent,
 		content: union.New(
 			union.NewItem(
 				"Loading",
 				loading),
-			union.NewItem(
-				"Canceled",
-				canceled),
 		),
 	}
 
-	go func() {
-		resource, err := fetch(ctx)
-
-		res.mtx.Lock()
-		defer res.mtx.Unlock()
-
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				res.content.SetActive("Canceled")
-				res.isCanceled = true
-			} else {
-				res.err = err
-			}
-			return
-		}
-
-		res.content.Add(union.NewItem("Content", makeContent(resource)))
-		res.content.SetActive("Content")
-	}()
+	res.tryFetchAsync()
 
 	res.ExtendBaseWidget(res)
 	return res
 }
 
-func (fr *FetchableResource) IsCanceled() bool {
+func (fr *FetchableResource) SetOnError(onErr func(error)) {
 	fr.mtx.Lock()
 	defer fr.mtx.Unlock()
-	return fr.isCanceled
+	fr.onErr = onErr
 }
 
-func (fr *FetchableResource) GetError() error {
-	fr.mtx.Lock()
-	defer fr.mtx.Unlock()
-	return fr.err
+func (fr *FetchableResource) IsFetching() bool {
+	return fr.fetching.Load()
+}
+
+func (fr *FetchableResource) Retry() error {
+	if fr.IsFetching() {
+		return errors.New("FetchableResource.Retry: already fetching a resource")
+	}
+
+	fr.tryFetchAsync()
+	return nil
 }
 
 func (fr *FetchableResource) CreateRenderer() fyne.WidgetRenderer {
 	fr.ExtendBaseWidget(fr)
 
 	return widget.NewSimpleRenderer(fr.content)
+}
+
+func (fr *FetchableResource) tryFetchAsync() {
+	go func() {
+		fr.fetching.Store(true)
+		defer fr.fetching.Store(false)
+
+		fr.mtx.Lock()
+		fr.content.SetActive("Loading")
+		fr.mtx.Unlock()
+
+		resource, err := fr.fetch(fr.ctx)
+
+		fr.mtx.Lock()
+		defer fr.mtx.Unlock()
+
+		if err != nil {
+			var errContent fyne.CanvasObject
+			if fr.makeErrContent != nil {
+				errContent = fr.makeErrContent(err)
+			}
+			if fr.onErr != nil {
+				fr.onErr(err)
+			}
+			fr.content.Set(union.NewItem("Error", errContent))
+			fr.content.SetActive("Error")
+			return
+		}
+
+		fr.content.Set(union.NewItem("Content", fr.makeContent(resource)))
+		fr.content.SetActive("Content")
+	}()
 }

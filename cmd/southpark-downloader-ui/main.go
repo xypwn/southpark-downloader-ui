@@ -5,6 +5,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/dialog"
 )
 
 func main() {
@@ -13,7 +14,10 @@ func main() {
 
 	gui := newGUI()
 
-	gui.Cache.UpdateRegion(context.Background())
+	err := gui.Cache.UpdateRegion(context.Background())
+	if err != nil {
+		dialog.ShowError(err, window)
+	}
 
 	window.SetContent(gui.makeGUI())
 

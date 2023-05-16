@@ -79,6 +79,7 @@ func getExtM3UInfo(data string, v any) error {
 			panic("getExtM3U8Info: field '" + fName + "' of 'v' is inaccessible")
 		}
 
+		const errUnsupportedField = "getExtM3U8Info: only strings, float32s and hexadecimal []bytes are supported as struct fields"
 		switch f.Kind() {
 		case reflect.String:
 			f.SetString(val)
@@ -103,10 +104,10 @@ func getExtM3UInfo(data string, v any) error {
 				}
 				f.SetBytes(decoded)
 			} else {
-				panic("getExtM3U8Info: only strings, ints and hex []bytes are supported as struct fields")
+				panic(errUnsupportedField)
 			}
 		default:
-			panic("getExtM3U8Info: only strings, ints and hex []bytes are supported as struct fields")
+			panic(errUnsupportedField)
 		}
 	}
 
@@ -159,8 +160,6 @@ type feedDoc struct {
 func getMediaGenURLs(ctx context.Context, mgid string, url string) ([]string, error) {
 	infoURL := fmt.Sprintf("http://media.mtvnservices.com/pmt/e1/access/index.html?uri=%v&configtype=edge&ref=%v", mgid, url)
 
-	fmt.Println(infoURL)
-
 	dataJSON, err := httputils.GetBodyWithContext(ctx, infoURL)
 	if err != nil {
 		return nil, fmt.Errorf("get feed doc: %w", err)
@@ -211,7 +210,7 @@ type mediaGenDoc struct {
 	} `json:"package"`
 }
 
-type highlevelMediaCaptionType struct {
+type highlevelMediaCaption struct {
 	Format string
 	URL    string
 }
@@ -223,7 +222,7 @@ type highlevelMedia struct {
 	StreamType      string
 	CaptionLang     string
 	CaptionLabel    string
-	Captions        []highlevelMediaCaptionType
+	Captions        []highlevelMediaCaption
 }
 
 func getHighlevelMedia(ctx context.Context, mediaGenURL string) (highlevelMedia, error) {
@@ -266,7 +265,7 @@ func getHighlevelMedia(ctx context.Context, mediaGenURL string) (highlevelMedia,
 	res.CaptionLang = transcript.Srclang
 	res.CaptionLabel = transcript.Label
 	for _, t := range transcript.Typographic {
-		res.Captions = append(res.Captions, highlevelMediaCaptionType{
+		res.Captions = append(res.Captions, highlevelMediaCaption{
 			Format: t.Format,
 			URL:    t.Src,
 		})
@@ -446,7 +445,7 @@ func ConvertTSToMP4(tsInput io.Reader, mp4Output io.WriteSeeker) error {
 		if errors.Is(err, io.ErrUnexpectedEOF) {
 			// File is incomplete, ignore
 		} else {
-			return err
+			return fmt.Errorf("MPEG-TS demuxer: %w", err)
 		}
 	}
 
@@ -589,7 +588,7 @@ func GetDownloadOutputFileName(episode Episode) string {
 func (d *Downloader) Do() error {
 	streams, err := GetEpisodeStreams(d.ctx, d.episode, d.selectFormat)
 	if err != nil {
-		return err
+		return fmt.Errorf("GetEpisodeStreams: %w", err)
 	}
 
 	d.OnFinishGetMetadata()
@@ -613,7 +612,7 @@ func (d *Downloader) Do() error {
 		}
 	} else {
 		if err := os.MkdirAll(d.tmpDirPath, os.ModePerm); err != nil {
-			return err
+			return fmt.Errorf("create temporary media directory: %w", err)
 		}
 	}
 
@@ -627,14 +626,14 @@ func (d *Downloader) Do() error {
 		currentSegment++
 		return nil
 	}); err != nil {
-		return err
+		return fmt.Errorf("GetEpisodeAsTS: %w", err)
 	}
 
 	d.OnStartPostprocess()
 
 	outputFileMP4, err := os.Create(d.outputFilePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("create output file: %w", err)
 	}
 	defer outputFileMP4.Close()
 
@@ -654,13 +653,15 @@ func (d *Downloader) Do() error {
 		tsWriter.Close()
 	}()
 	if err := ConvertTSToMP4(tsReader, outputFileMP4); err != nil {
-		return err
+		return fmt.Errorf("convert MPEG-TS to mp4: %w", err)
 	}
 	if convertErr != nil {
 		// Currently only propagates last error
-		return convertErr
+		return fmt.Errorf("convert MPEG-TS to mp4: %w", err)
 	}
-	os.RemoveAll(d.tmpDirPath)
+	if err := os.RemoveAll(d.tmpDirPath); err != nil {
+		return fmt.Errorf("remove temporary media directory: %w", err)
+	}
 
 	return nil
 }

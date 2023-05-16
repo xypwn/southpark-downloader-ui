@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/xypwn/southpark-downloader-ui/pkg/gui/fetchableresource"
 	"github.com/xypwn/southpark-downloader-ui/pkg/gui/union"
@@ -80,8 +81,8 @@ func (g *GUI) makeEpisodesPanel() fyne.CanvasObject {
 				panic("logic error: nonexistent language selected")
 			}
 			if !seasonLists.Contains(languageStr) {
-				seasons := g.makeSeasonsList(language)
-				seasonLists.Add(
+				seasons := g.makeSeasonList(language)
+				seasonLists.Set(
 					union.NewItem(languageStr, seasons),
 				)
 			}
@@ -127,8 +128,9 @@ func (g *GUI) makeEpisodeSearch() fyne.CanvasObject {
 	return search
 }
 
-func (g *GUI) makeSeasonsList(language sp.Language) fyne.CanvasObject {
-	return fetchableresource.New(
+func (g *GUI) makeSeasonList(language sp.Language) fyne.CanvasObject {
+	var seasonList *fetchableresource.FetchableResource
+	seasonList = fetchableresource.New(
 		context.Background(),
 		makeProgressBarInfiniteTop(),
 		func(ctx context.Context) (any, error) {
@@ -136,7 +138,8 @@ func (g *GUI) makeSeasonsList(language sp.Language) fyne.CanvasObject {
 			seasons := g.Cache.Seasons[language]
 			g.Cache.Unlock()
 			if seasons == nil {
-				err := g.Cache.UpdateSeasons(ctx, language)
+				updateCtx, _ := context.WithTimeout(ctx, 20 * time.Second)
+				err := g.Cache.UpdateSeasons(updateCtx, language)
 				if err != nil {
 					return nil, err
 				}
@@ -177,7 +180,7 @@ func (g *GUI) makeSeasonsList(language sp.Language) fyne.CanvasObject {
 				g.State.Unlock()
 
 				if !g.State.EpisodeLists.Contains(season.Title) {
-					g.State.EpisodeLists.Add(
+					g.State.EpisodeLists.Set(
 						union.NewItem(
 							season.Title,
 							g.makeEpisodeList(season, seasonIndex),
@@ -199,17 +202,31 @@ func (g *GUI) makeSeasonsList(language sp.Language) fyne.CanvasObject {
 			}
 			return list
 		},
-		nil,
+		func(err error) fyne.CanvasObject {
+			label := widget.NewLabelWithStyle(
+				fmt.Sprintf("Error loading seasons: %v", err),
+				fyne.TextAlignCenter,
+				fyne.TextStyle{},
+			)
+			label.Wrapping = fyne.TextWrapWord
+			button := widget.NewButtonWithIcon("Retry", theme.ViewRefreshIcon(), func() {
+				seasonList.Retry()
+			})
+			return container.NewBorder(label, button, nil, nil)
+		},
 	)
+	return seasonList
 }
 
 func (g *GUI) makeEpisodeList(season Season, seasonIndex int) fyne.CanvasObject {
-	return fetchableresource.New(
+	var episodeList *fetchableresource.FetchableResource
+	episodeList = fetchableresource.New(
 		context.Background(),
 		makeProgressBarInfiniteTop(),
 		func(ctx context.Context) (any, error) {
 			if season.Episodes == nil {
-				err := g.Cache.UpdateEpisodes(context.Background(), season.Language, seasonIndex)
+				updateCtx, _ := context.WithTimeout(ctx, 20 * time.Second)
+				err := g.Cache.UpdateEpisodes(updateCtx, season.Language, seasonIndex)
 				if err != nil {
 					return nil, err
 				}
@@ -225,8 +242,20 @@ func (g *GUI) makeEpisodeList(season Season, seasonIndex int) fyne.CanvasObject 
 			}
 			return container.NewVScroll(vb)
 		},
-		nil,
+		func(err error) fyne.CanvasObject {
+			label := widget.NewLabelWithStyle(
+				fmt.Sprintf("Error loading episodes: %v", err),
+				fyne.TextAlignCenter,
+				fyne.TextStyle{},
+			)
+			label.Wrapping = fyne.TextWrapWord
+			button := widget.NewButtonWithIcon("Retry", theme.ViewRefreshIcon(), func() {
+				episodeList.Retry()
+			})
+			return container.NewBorder(label, button, nil, nil)
+		},
 	)
+	return episodeList
 }
 
 func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
@@ -419,8 +448,6 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 						dialog.ShowError(err, mainWindow)
 						return
 					}
-
-					fmt.Println(out)
 
 					//dialog.ShowInformation("Path", out.URI().String(), mainWindow)
 
