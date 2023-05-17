@@ -35,13 +35,15 @@ type SeasonID struct {
 }
 
 type GUI struct {
+	MainWindow fyne.Window
 	State     GUIState
 	Cache     Cache
 	Downloads *Downloads
 }
 
-func newGUI() *GUI {
+func newGUI(mainWindow fyne.Window) *GUI {
 	return &GUI{
+		MainWindow: mainWindow,
 		Cache: Cache{
 			Seasons: make(map[sp.Language]Seasons),
 		},
@@ -54,11 +56,13 @@ func (g *GUI) makeGUI() fyne.CanvasObject {
 		container.NewTabItem(
 			"Episodes", g.makeEpisodesPanel()),
 		container.NewTabItem(
-			"Downloads", g.makeDownloadsPanel()))
+			"Downloads", g.makeDownloadsPanel()),
+		container.NewTabItem(
+			"Search", g.makeSearchPanel()),
+	)
 }
 
 func (g *GUI) makeEpisodesPanel() fyne.CanvasObject {
-	search := g.makeEpisodeSearch()
 	episodeLists := union.New()
 	seasonLists := union.New()
 
@@ -99,33 +103,18 @@ func (g *GUI) makeEpisodesPanel() fyne.CanvasObject {
 		seasonLists,
 	)
 
-	var mainCnt fyne.CanvasObject
+	var cnt fyne.CanvasObject
 	if fyne.CurrentDevice().IsMobile() {
-		mainCnt = seasons
+		cnt = seasons
 	} else {
 		hs := container.NewHSplit(
 			seasons,
 			episodeLists,
 		)
 		hs.Offset = 0.15
-		mainCnt = hs
+		cnt = hs
 	}
-
-	return container.NewBorder(
-		search,
-		nil,
-		nil,
-		nil,
-		mainCnt,
-	)
-}
-
-func (g *GUI) makeEpisodeSearch() fyne.CanvasObject {
-	search := widget.NewEntry()
-	search.SetPlaceHolder("Search")
-	search.ActionItem = widget.NewButtonWithIcon("", theme.SearchIcon(), func() {
-	})
-	return search
+	return cnt
 }
 
 func (g *GUI) makeSeasonList(language sp.Language) fyne.CanvasObject {
@@ -210,7 +199,7 @@ func (g *GUI) makeSeasonList(language sp.Language) fyne.CanvasObject {
 			)
 			label.Wrapping = fyne.TextWrapWord
 			button := widget.NewButtonWithIcon("Retry", theme.ViewRefreshIcon(), func() {
-				seasonList.Retry()
+				seasonList.Refetch()
 			})
 			return container.NewBorder(label, button, nil, nil)
 		},
@@ -250,7 +239,7 @@ func (g *GUI) makeEpisodeList(season Season, seasonIndex int) fyne.CanvasObject 
 			)
 			label.Wrapping = fyne.TextWrapWord
 			button := widget.NewButtonWithIcon("Retry", theme.ViewRefreshIcon(), func() {
-				episodeList.Retry()
+				episodeList.Refetch()
 			})
 			return container.NewBorder(label, button, nil, nil)
 		},
@@ -259,58 +248,6 @@ func (g *GUI) makeEpisodeList(season Season, seasonIndex int) fyne.CanvasObject 
 }
 
 func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
-	mainWindow := fyne.CurrentApp().Driver().AllWindows()[0]
-
-	var imgMinSize fyne.Size
-	if fyne.CurrentDevice().IsMobile() {
-		winSize := fyne.CurrentApp().Driver().AllWindows()[0].Content().Size()
-		var minWidth float32
-		if winSize.Width < winSize.Height {
-			minWidth = winSize.Width
-		} else {
-			minWidth = winSize.Height
-		}
-		imgMinSize = fyne.NewSize(160, minWidth*9/16)
-	} else {
-		imgMinSize = fyne.NewSize(160, 90)
-	}
-
-	var placeholder fyne.CanvasObject
-	{
-		img := canvas.NewImageFromResource(theme.FileImageIcon())
-		img.FillMode = canvas.ImageFillContain
-		img.ScaleMode = canvas.ImageScaleFastest
-		img.SetMinSize(imgMinSize)
-		placeholder = container.NewMax(
-			img,
-			makeProgressBarInfiniteBottom(),
-		)
-	}
-
-	thumbnail := fetchableresource.New(
-		context.Background(),
-		placeholder,
-		func(ctx context.Context) (any, error) {
-			resource, err := fyne.LoadResourceFromURLString(
-				episode.GetThumbnailURL(320, 180, true))
-			if err != nil {
-				return nil, err
-			}
-			return resource, nil
-		},
-		func(resource any) fyne.CanvasObject {
-			img := canvas.NewImageFromResource(resource.(fyne.Resource))
-			img.FillMode = canvas.ImageFillContain
-			img.ScaleMode = canvas.ImageScaleFastest
-			img.SetMinSize(imgMinSize)
-			return img
-		},
-		nil,
-	)
-
-	text := widget.NewRichTextFromMarkdown("## " + episode.Title + "\n" + episode.Description)
-	text.Wrapping = fyne.TextWrapWord
-
 	status := binding.NewInt()
 	statusText := binding.NewString()
 	progress := binding.NewFloat()
@@ -422,7 +359,7 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 			dialog.ShowInformation(
 				"Episode unavailable",
 				"This episode is currently unavailable",
-				mainWindow,
+				g.MainWindow,
 			)
 		},
 	)
@@ -445,11 +382,11 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 					}
 					if err != nil {
 						out.Close()
-						dialog.ShowError(err, mainWindow)
+						dialog.ShowError(err, g.MainWindow)
 						return
 					}
 
-					//dialog.ShowInformation("Path", out.URI().String(), mainWindow)
+					//dialog.ShowInformation("Path", out.URI().String(), g.MainWindow)
 
 					storageBase := fyne.CurrentApp().Storage().RootURI().Path()
 					tmpDir := path.Join(storageBase, "tmp_"+baseName)
@@ -470,7 +407,7 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 					handle.StatusText = statusText
 					if err != nil {
 						out.Close()
-						dialog.ShowError(err, mainWindow)
+						dialog.ShowError(err, g.MainWindow)
 						return
 					}
 
@@ -487,13 +424,13 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 
 						if err := handle.Do(); err != nil {
 							if !errors.Is(err, context.Canceled) {
-								dialog.ShowError(err, mainWindow)
+								dialog.ShowError(err, g.MainWindow)
 							}
 							return
 						}
 					}()
 				},
-				mainWindow,
+				g.MainWindow,
 			)
 			saveDialog.SetFilter(storage.NewExtensionFileFilter([]string{".mp4"}))
 			saveDialog.SetFileName(baseName + ".mp4")
@@ -525,10 +462,75 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 		button.SetActive("Download")
 	}
 
+	return g.makeEpisodeBaseView(
+		episode.RawThumbnailURL,
+		episode.Title,
+		episode.Description,
+		loader,
+		button,
+	)
+}
+
+func (g *GUI) makeEpisodeBaseView(rawThumbnailURL sp.RawThumbnailURL, title string, description string, thumbnailOverlay fyne.CanvasObject, button fyne.CanvasObject) fyne.CanvasObject {
+	var imgMinSize fyne.Size
+	if fyne.CurrentDevice().IsMobile() {
+		winSize := g.MainWindow.Content().Size()
+		var minWidth float32
+		if winSize.Width < winSize.Height {
+			minWidth = winSize.Width
+		} else {
+			minWidth = winSize.Height
+		}
+		imgMinSize = fyne.NewSize(160, minWidth*9/16)
+	} else {
+		imgMinSize = fyne.NewSize(160, 90)
+	}
+
+	var placeholder fyne.CanvasObject
+	{
+		img := canvas.NewImageFromResource(theme.FileImageIcon())
+		img.FillMode = canvas.ImageFillContain
+		img.ScaleMode = canvas.ImageScaleFastest
+		img.SetMinSize(imgMinSize)
+		placeholder = container.NewMax(
+			img,
+			makeProgressBarInfiniteBottom(),
+		)
+	}
+
+	thumbnail := fetchableresource.New(
+		context.Background(),
+		placeholder,
+		func(ctx context.Context) (any, error) {
+			resource, err := fyne.LoadResourceFromURLString(
+				rawThumbnailURL.GetThumbnailURL(320, 180, true))
+			if err != nil {
+				return nil, err
+			}
+			return resource, nil
+		},
+		func(resource any) fyne.CanvasObject {
+			img := canvas.NewImageFromResource(resource.(fyne.Resource))
+			img.FillMode = canvas.ImageFillContain
+			img.ScaleMode = canvas.ImageScaleFastest
+			img.SetMinSize(imgMinSize)
+			return img
+		},
+		nil,
+	)
+
+	text := widget.NewRichTextFromMarkdown("## " + title + "\n" + description)
+	text.Wrapping = fyne.TextWrapWord
+
+	thumbnailCnt := container.NewMax(thumbnail)
+	if thumbnailOverlay != nil {
+		thumbnailCnt.Add(thumbnailOverlay)
+	}
+
 	if fyne.CurrentDevice().IsMobile() {
 		return container.NewPadded(
 			container.NewBorder(
-				container.NewMax(thumbnail, loader),
+				thumbnailCnt,
 				nil,
 				nil,
 				button,
@@ -539,7 +541,7 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 		return container.NewBorder(
 			nil,
 			nil,
-			container.NewMax(thumbnail, loader),
+			thumbnailCnt,
 			button,
 			text,
 		)
@@ -600,6 +602,70 @@ func (g *GUI) makeDownloadsPanel() fyne.CanvasObject {
 	hs := container.NewHSplit(episodes, statuses)
 	hs.Offset = 0.6
 	return hs
+}
+
+
+func (g *GUI) makeSearchPanel() fyne.CanvasObject {
+	search := widget.NewEntry()
+
+	results := fetchableresource.New(
+		context.Background(),
+		makeProgressBarInfiniteTop(),
+		func(ctx context.Context) (any, error) {
+			g.Cache.Lock()
+			region := g.Cache.Region
+			if len(g.Cache.Seasons) == 0 {
+				g.Cache.Unlock()
+				return nil, errors.New("no series available")
+			}
+			seriesMGID := g.Cache.Seasons[0].SeriesMGID
+			g.Cache.Unlock()
+
+			results, err := sp.Search(
+				context.Background(),
+				region,
+				seriesMGID,
+				search.Text,
+				0,
+				20,
+			)
+			if err != nil {
+				return nil, err
+			}
+			return results, nil
+		},
+		func(resource any) fyne.CanvasObject {
+			results := resource.([]sp.SearchResult)
+			episodes := container.NewVBox()
+			for _, v := range results {
+				episodes.Add(g.makeEpisodeBaseView(
+					v.RawThumbnailURL,
+					v.Title,
+					v.Description,
+					nil,
+					nil,
+				))
+			}
+			return container.NewVScroll(episodes)
+		},
+		nil,
+	)
+
+	search.SetPlaceHolder("Search for an episode")
+	search.OnSubmitted = func(string) {
+		results.Refetch()
+	}
+	search.ActionItem = widget.NewButtonWithIcon("", theme.SearchIcon(), func() {
+		results.Refetch()
+	})
+
+	return container.NewBorder(
+		search,
+		nil,
+		nil,
+		nil,
+		results,
+	)
 }
 
 func makeProgressBarInfiniteTop() fyne.CanvasObject {

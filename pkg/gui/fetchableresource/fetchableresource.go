@@ -61,9 +61,9 @@ func (fr *FetchableResource) IsFetching() bool {
 	return fr.fetching.Load()
 }
 
-func (fr *FetchableResource) Retry() error {
+func (fr *FetchableResource) Refetch() error {
 	if fr.IsFetching() {
-		return errors.New("FetchableResource.Retry: already fetching a resource")
+		return errors.New("FetchableResource.Refetch: already fetching a resource")
 	}
 
 	fr.tryFetchAsync()

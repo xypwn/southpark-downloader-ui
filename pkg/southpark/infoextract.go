@@ -97,6 +97,28 @@ func GetRegionInfo(ctx context.Context) (RegionInfo, error) {
 	}
 }
 
+func (r RegionInfo) GetURLLanguage(spURL string) (Language, error) {
+	if len(r.AvailableLanguages) == 1 {
+		return r.AvailableLanguages[0], nil
+	} else if len(r.AvailableLanguages) == 2 &&
+		r.RequiresExplicitEN {
+		url, err := url.Parse(spURL)
+		if err != nil {
+			return 0, fmt.Errorf("parse URL: %w", err)
+		}
+		if strings.HasPrefix(url.Path, "/en/") {
+			return LanguageEnglish, nil
+		} else {
+			for _, v := range r.AvailableLanguages {
+				if v != LanguageEnglish {
+					return v, nil
+				}
+			}
+		}
+	}
+	panic("RegionInfo.GetURLLanguage called with invalid RegionInfo or invalid URL")
+}
+
 type websiteDataProps struct {
 	Type    string `json:"type"`
 	Filters struct {
@@ -256,20 +278,22 @@ func GetSeasons(ctx context.Context, regionInfo RegionInfo, language Language) (
 	return res, seriesMGID, nil
 }
 
+type RawThumbnailURL string
+
+func (r RawThumbnailURL) GetThumbnailURL(width uint, height uint, crop bool) string {
+	return fmt.Sprintf("%v&width=%v&height=%v&crop=%v", r, width, height, crop)
+}
+
 type Episode struct {
 	SeasonNumber    int // From 1
 	EpisodeNumber   int // From 1
 	Unavailable     bool
-	RawThumbnailURL string
+	RawThumbnailURL RawThumbnailURL
 	Title           string
 	Description     string
 	MGID            string
 	URL             string
 	Language        Language
-}
-
-func (e Episode) GetThumbnailURL(width uint, height uint, crop bool) string {
-	return fmt.Sprintf("%v&width=%v&height=%v&crop=%v", e.RawThumbnailURL, width, height, crop)
 }
 
 func GetEpisodes(ctx context.Context, season Season) ([]Episode, error) {
@@ -323,7 +347,7 @@ func GetEpisodes(ctx context.Context, season Season) ([]Episode, error) {
 				SeasonNumber:    season.SeasonNumber,
 				EpisodeNumber:   int(episodeNum),
 				Unavailable:     v.Media.LockedLabel != "",
-				RawThumbnailURL: v.Media.Image.URL,
+				RawThumbnailURL: RawThumbnailURL(v.Media.Image.URL),
 				Title:           v.Meta.SubHeader,
 				Description:     v.Meta.Description,
 				MGID:            v.Meta.ItemMGID,
@@ -338,5 +362,83 @@ func GetEpisodes(ctx context.Context, season Season) ([]Episode, error) {
 		return res[i].EpisodeNumber < res[j].EpisodeNumber
 	})
 
+	return res, nil
+}
+
+type searchData struct {
+	Response struct {
+		Items []struct {
+			Media struct {
+				Image    struct {
+					URL         string  `json:"url"`
+				} `json:"image"`
+				LockedLabel   string `json:"lockedLabel"`
+			} `json:"media"`
+			Meta struct {
+				SubHeader   string `json:"subHeader"`
+				Description string `json:"description"`
+			} `json:"meta"`
+			URL       string `json:"url"`
+		} `json:"items"`
+	} `json:"response"`
+}
+
+type SearchResult struct {
+	Language Language
+	Unavailable bool
+	RawThumbnailURL RawThumbnailURL
+	Title string
+	Description string
+	URL string
+}
+
+func Search(
+	ctx context.Context,
+	regionInfo RegionInfo,
+	seriesMGID string,
+	query string,
+	pageNumber int, // From 0
+	resultsPerPage int,
+) ([]SearchResult, error) {
+	showID, ok := cutPrefix(seriesMGID, "mgid:arc:series:southpark.intl:")
+	if !ok {
+		return nil, fmt.Errorf("invalid series MGID: %v", seriesMGID)
+	}
+
+	apiURL := fmt.Sprintf(
+		"https://%v/api/search?q=%v&activeTab=Episode&showId=%v&pageNumber=%v&rowsPerPage=%v",
+		regionInfo.Host,
+		url.QueryEscape(query),
+		showID,
+		pageNumber,
+		resultsPerPage,
+	)
+
+	body, err := httputils.GetBodyWithContext(ctx, apiURL)
+	if err != nil {
+		return nil, fmt.Errorf("make search API call: %w", err)
+	}
+
+	var data searchData
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		return nil, fmt.Errorf("parse search API response: %w", err)
+	}
+
+	var res []SearchResult
+	for _, v := range data.Response.Items {
+		urlLang, err := regionInfo.GetURLLanguage(v.URL)
+		if err != nil {
+			return nil, fmt.Errorf("get search result language: %w", err)
+		}
+		res = append(res, SearchResult{
+			Language: urlLang,
+			Unavailable: v.Media.LockedLabel != "",
+			RawThumbnailURL: RawThumbnailURL("https:"+v.Media.Image.URL),
+			Title: v.Meta.SubHeader,
+			Description: v.Meta.Description,
+			URL: v.URL,
+		})
+	}
 	return res, nil
 }
