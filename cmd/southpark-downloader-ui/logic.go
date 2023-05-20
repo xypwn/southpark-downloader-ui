@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -91,28 +92,13 @@ type Season struct {
 	Episodes []sp.Episode
 }
 
-type DownloadStatus int
-
-const (
-	DownloadNotStarted DownloadStatus = iota
-	DownloadWaiting
-	DownloadFetchingMetadata
-	DownloadDownloadingVideo
-	DownloadDownloadingSubtitles
-	DownloadPostprocessing
-	DownloadCopying // Only appears on mobile
-	DownloadDone
-	DownloadCanceled
-)
-
 type DownloadHandle struct {
 	Context    context.Context
 	Do         func() error // Can be called asynchronously
 	Cancel     func()
-	Status     binding.Int    // Of type DownloadStatus
-	Progress   binding.Float  // Either download or postprocessing, depending on status
-	StatusText binding.String // Optional, managed by user
-	Priority binding.Int
+	Priority   binding.Int
+	StatusText binding.String
+	Progress   binding.Float // -1 if current status has no progress estimate
 	Episode    sp.Episode
 }
 
@@ -138,8 +124,8 @@ func (d *Downloads) Add(
 	outputSubtitleFilePath string, // Empty to download video only
 	finalOutput io.WriteCloser, // Useful on mobile only, pass nil to not use; only one of either video or subtitles allowed if non-nil
 	priorityData binding.Int,
-	statusData binding.Int, // Of type DownloadStatus
-	progressData binding.Float,
+	statusTextData binding.String,
+	progressData binding.Float, // -1 if current status has no progress estimate
 ) (*DownloadHandle, error) {
 	if finalOutput != nil && outputVideoFilePath != "" && outputSubtitleFilePath != "" {
 		return nil, errors.New("only one of either video or subtitles allowed when finalOutput is non-nil")
@@ -149,12 +135,11 @@ func (d *Downloads) Add(
 	handle := &DownloadHandle{
 		Context:  dlCtx,
 		Cancel:   cancel,
-		Status:   statusData,
-		Progress: progressData,
 		Priority: priorityData,
+		StatusText: statusTextData,
+		Progress: progressData,
 		Episode:  episode,
 	}
-	handle.Status.Set(int(DownloadNotStarted))
 	dler := sp.NewDownloader(
 		dlCtx,
 		episode,
@@ -169,20 +154,27 @@ func (d *Downloads) Add(
 		},
 		outputSubtitleFilePath,
 	)
-	dler.OnFinishGetMetadata = func() {
-		handle.Status.Set(int(DownloadDownloadingVideo))
-	}
-	dler.OnProgress = func(progress float64, postprocessing bool) {
-		handle.Progress.Set(progress)
-	}
-	dler.OnStartPostprocess = func() {
-		handle.Status.Set(int(DownloadPostprocessing))
-	}
-	dler.OnStartDownloadSubtitles = func() {
-		handle.Status.Set(int(DownloadDownloadingSubtitles))
+	dler.OnStatusChanged = func(status sp.DownloaderStatus, progress float64) {
+		var statusText string
+		switch status {
+		case sp.DownloaderStatusFetchingMetadata:
+			statusText = "Fetching Metadata"
+		case sp.DownloaderStatusDownloadingVideo:
+			statusText = "Downloading Video"
+		case sp.DownloaderStatusDownloadingSubtitles:
+			statusText = "Downloading Subtitles"
+		case sp.DownloaderStatusPostprocessing:
+			statusText = "Postprocessing"
+		}
+		if progress != -1 {
+			statusText += fmt.Sprintf(" %.0f%%", progress * 100)
+		}
+		_ = handle.StatusText.Set(statusText)
+		_ = handle.Progress.Set(progress)
 	}
 	handle.Do = func() error {
-		handle.Status.Set(int(DownloadWaiting))
+		_ = handle.StatusText.Set("Waiting")
+		_ = handle.Progress.Set(-1)
 
 		priority, err := handle.Priority.Get()
 		if err != nil {
@@ -203,7 +195,8 @@ func (d *Downloads) Add(
 			priorityListener = listener
 		}); err != nil {
 			if errors.Is(err, context.Canceled) {
-				handle.Status.Set(int(DownloadCanceled))
+				_ = handle.StatusText.Set("Canceled")
+				_ = handle.Progress.Set(-1)
 			}
 			return err
 		}
@@ -212,11 +205,10 @@ func (d *Downloads) Add(
 		}
 		defer d.Release()
 
-		handle.Status.Set(int(DownloadFetchingMetadata))
-
 		if err := dler.Do(); err != nil {
 			if errors.Is(err, context.Canceled) {
-				handle.Status.Set(int(DownloadCanceled))
+				_ = handle.StatusText.Set("Interrupted")
+				_ = handle.Progress.Set(-1)
 			}
 			return err
 		}
@@ -234,7 +226,8 @@ func (d *Downloads) Add(
 				return err
 			}
 
-			handle.Status.Set(int(DownloadCopying))
+			_ = handle.StatusText.Set("Copying")
+			_ = handle.Progress.Set(-1)
 
 			_, err = io.Copy(finalOutput, f)
 			if err != nil {
@@ -244,7 +237,8 @@ func (d *Downloads) Add(
 			os.Remove(outputVideoFilePath)
 		}
 
-		handle.Status.Set(int(DownloadDone))
+		_ = handle.StatusText.Set("Done")
+		_ = handle.Progress.Set(-1)
 		return nil
 	}
 	d.mtx.Lock()

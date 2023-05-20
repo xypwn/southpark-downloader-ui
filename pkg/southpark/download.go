@@ -18,11 +18,21 @@ func GetDownloadOutputFileName(episode Episode) string {
 	)
 }
 
+type DownloaderStatus int
+const (
+	DownloaderStatusFetchingMetadata DownloaderStatus = iota
+	DownloaderStatusDownloadingVideo
+	DownloaderStatusDownloadingSubtitles
+	DownloaderStatusPostprocessing
+)
+
 type Downloader struct {
-	OnFinishGetMetadata      func()
-	OnStartPostprocess       func()
-	OnProgress               func(_ float64, postprocessing bool) // If not postprocessing, it is downloading
-	OnStartDownloadSubtitles func()
+	OnStatusChanged func(
+		status DownloaderStatus,
+		// Between [0;1] if progress can be estimated, -1 if progress can't be estimated;
+		// always related to current status
+		progress float64,
+	)
 
 	selectFormat       func([]HLSFormat) (HLSFormat, error)
 	ctx                context.Context
@@ -37,15 +47,12 @@ func NewDownloader(
 	episode Episode,
 	tmpDirPath string,
 	outputVideoPath string, // Empty to download subs only
-	selectFormat func([]HLSFormat) (HLSFormat, error),
+	selectVideoFormat func([]HLSFormat) (HLSFormat, error),
 	outputSubtitlePath string, // Empty to download video only
 ) *Downloader {
 	return &Downloader{
-		OnFinishGetMetadata:      func() {},
-		OnStartPostprocess:       func() {},
-		OnProgress:               func(_ float64, postprocessing bool) {},
-		OnStartDownloadSubtitles: func() {},
-		selectFormat:             selectFormat,
+		OnStatusChanged: func(DownloaderStatus, float64) {},
+		selectFormat:             selectVideoFormat,
 		ctx:                      ctx,
 		tmpDirPath:               tmpDirPath,
 		outputVideoPath:          outputVideoPath,
@@ -55,14 +62,16 @@ func NewDownloader(
 }
 
 func (d *Downloader) Do() error {
+	d.OnStatusChanged(DownloaderStatusFetchingMetadata, -1)
+
 	parts, err := GetEpisodeParts(d.ctx, d.episode, d.selectFormat)
 	if err != nil {
 		return fmt.Errorf("GetEpisodeParts: %w", err)
 	}
 
-	d.OnFinishGetMetadata()
-
 	if d.outputVideoPath != "" {
+		d.OnStatusChanged(DownloaderStatusDownloadingVideo, 0)
+
 		getSegFileName := func(n int) string {
 			return path.Join(d.tmpDirPath, fmt.Sprintf("Seg%04v.ts", n))
 		}
@@ -92,14 +101,14 @@ func (d *Downloader) Do() error {
 			if err := os.WriteFile(getSegFileName(currentSegment), frame, 0644); err != nil {
 				return err
 			}
-			d.OnProgress(float64(currentSegment)/float64(totalSegments), false)
+			d.OnStatusChanged(DownloaderStatusDownloadingVideo, float64(currentSegment)/float64(totalSegments))
 			currentSegment++
 			return nil
 		}); err != nil {
 			return fmt.Errorf("GetEpisodeAsTS: %w", err)
 		}
 
-		d.OnStartPostprocess()
+		d.OnStatusChanged(DownloaderStatusPostprocessing, 0)
 
 		outputFileMP4, err := os.Create(d.outputVideoPath)
 		if err != nil {
@@ -119,7 +128,7 @@ func (d *Downloader) Do() error {
 					break
 				}
 				tsWriter.Write(tsData)
-				d.OnProgress(float64(i)/float64(totalSegments), true)
+				d.OnStatusChanged(DownloaderStatusPostprocessing, float64(i)/float64(totalSegments))
 			}
 			tsWriter.Close()
 		}()
@@ -135,7 +144,7 @@ func (d *Downloader) Do() error {
 	}
 
 	if d.outputSubtitlePath != "" {
-		d.OnStartDownloadSubtitles()
+		d.OnStatusChanged(DownloaderStatusDownloadingSubtitles, -1)
 
 		subs, err := GetEpisodeVTTSubtitles(d.ctx, parts)
 		if err != nil {

@@ -94,6 +94,19 @@ func (g *GUI) makeSeasonList(language sp.Language) fyne.CanvasObject {
 				}
 				g.Cache.Lock()
 				seasons = g.Cache.Seasons[language].Seasons
+				{
+					var seasonIndices []string
+					for i := range g.Cache.Seasons[language].Seasons {
+						seasonIndices = append(seasonIndices, fmt.Sprintf("%v", i))
+					}
+					g.App.Preferences().SetString(
+						fmt.Sprintf(
+							"KnownSeasons:%v",
+							language.String(),
+						),
+						strings.Join(seasonIndices, "/"),
+					)
+				}
 				g.Cache.Unlock()
 			}
 			return seasons, nil
@@ -179,6 +192,21 @@ func (g *GUI) makeEpisodeList(season Season, seasonIndex int) fyne.CanvasObject 
 				if err != nil {
 					return nil, err
 				}
+
+				g.Cache.Lock()
+				var episodeNumbers []string
+				for i := range g.Cache.Seasons[season.Language].Seasons[seasonIndex].Episodes {
+					episodeNumbers = append(episodeNumbers, fmt.Sprintf("%v", i))
+				}
+				g.App.Preferences().SetString(
+					fmt.Sprintf(
+						"KnownEpisodes:%v:%v",
+						season.Language.String(),
+						seasonIndex,
+					),
+					strings.Join(episodeNumbers, "/"),
+				)
+				g.Cache.Unlock()
 			}
 			return g.Cache.Seasons[season.Language].Seasons[seasonIndex], nil
 		},
@@ -209,7 +237,6 @@ func (g *GUI) makeEpisodeList(season Season, seasonIndex int) fyne.CanvasObject 
 
 func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 	priority := binding.NewInt()
-	status := binding.NewInt()
 	statusText := binding.NewString()
 	progress := binding.NewFloat()
 
@@ -248,65 +275,13 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 		loader.Hide()
 	}
 
-	status.AddListener(binding.NewDataListener(
-		func() {
-			v, err := status.Get()
-			if err != nil {
-				return
-			}
-			switch DownloadStatus(v) {
-			case DownloadNotStarted:
-				loader.Hide()
-				statusText.Set("Not started")
-			case DownloadWaiting:
-				loader.Show()
-				loadingBar.SetActive("Infinite")
-				statusText.Set("Waiting")
-			case DownloadFetchingMetadata:
-				loader.Show()
-				loadingBar.SetActive("Infinite")
-				statusText.Set("Fetching metadata")
-			case DownloadDownloadingVideo:
-				loader.Show()
-				loadingBar.SetActive("Progress")
-				// Text handled by progress
-			case DownloadDownloadingSubtitles:
-				loader.Show()
-				loadingBar.SetActive("Infinite")
-				statusText.Set("Downloading subtitles")
-			case DownloadPostprocessing:
-				loader.Show()
-				loadingBar.SetActive("Progress")
-				// Text handled by progress
-			case DownloadCopying:
-				loader.Show()
-				loadingBar.SetActive("Infinite")
-				statusText.Set("Copying")
-			case DownloadDone:
-				loader.Hide()
-				statusText.Set("Done")
-			case DownloadCanceled:
-				loader.Hide()
-				statusText.Set("Canceled")
-			}
-		}))
-
 	progress.AddListener(binding.NewDataListener(func() {
-		p, err := progress.Get()
-		if err != nil {
-			return
-		}
-		s, err := status.Get()
-		if err != nil {
-			return
-		}
-		var action string
-		if DownloadStatus(s) == DownloadDownloadingVideo {
-			action = "Downloading"
+		p, _ := progress.Get()
+		if p == -1 {
+			loadingBar.SetActive("Infinite")
 		} else {
-			action = "Postprocessing"
+			loadingBar.SetActive("Progress")
 		}
-		statusText.Set(fmt.Sprintf("%v %.0f%%", action, p*100))
 	}))
 
 	var button *union.Union
@@ -366,10 +341,9 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 					outSubFile,
 					finalOut,
 					priority,
-					status,
+					statusText,
 					progress,
 				)
-				handle.StatusText = statusText
 				if err != nil {
 					if finalOut != nil {
 						finalOut.Close()
@@ -391,12 +365,16 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 					}
 					defer button.SetActive("Done")
 
+					loader.Show()
+					defer loader.Hide()
+
 					if err := handle.Do(); err != nil {
 						if !errors.Is(err, context.Canceled) {
 							dialog.ShowError(err, g.CurrentWindow.Get())
 						}
 						return
 					}
+					handle.StatusText.Set("Done")
 
 					{
 						// TODO: Fix concurrency issues in DownloadedEpisodes preferences field
@@ -485,9 +463,9 @@ func (g *GUI) makeEpisodeBaseView(rawThumbnailURL sp.RawThumbnailURL, title stri
 		} else {
 			minWidth = winSize.Height
 		}
-		imgMinSize = fyne.NewSize(160, minWidth*9/16)
+		imgMinSize = fyne.NewSize(192, minWidth*9/16)
 	} else {
-		imgMinSize = fyne.NewSize(160, 90)
+		imgMinSize = fyne.NewSize(192, 108)
 	}
 
 	var placeholder fyne.CanvasObject
@@ -507,7 +485,7 @@ func (g *GUI) makeEpisodeBaseView(rawThumbnailURL sp.RawThumbnailURL, title stri
 		placeholder,
 		func(ctx context.Context) (any, error) {
 			resource, err := fyne.LoadResourceFromURLString(
-				rawThumbnailURL.GetThumbnailURL(320, 180, true))
+				rawThumbnailURL.GetThumbnailURL(384, 216, true))
 			if err != nil {
 				return nil, err
 			}
