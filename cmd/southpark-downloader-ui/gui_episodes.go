@@ -208,6 +208,7 @@ func (g *GUI) makeEpisodeList(season Season, seasonIndex int) fyne.CanvasObject 
 }
 
 func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
+	priority := binding.NewInt()
 	status := binding.NewInt()
 	statusText := binding.NewString()
 	progress := binding.NewFloat()
@@ -364,7 +365,7 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 					outVidFile,
 					outSubFile,
 					finalOut,
-					0,
+					priority,
 					status,
 					progress,
 				)

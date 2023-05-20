@@ -112,6 +112,7 @@ type DownloadHandle struct {
 	Status     binding.Int    // Of type DownloadStatus
 	Progress   binding.Float  // Either download or postprocessing, depending on status
 	StatusText binding.String // Optional, managed by user
+	Priority binding.Int
 	Episode    sp.Episode
 }
 
@@ -136,7 +137,7 @@ func (d *Downloads) Add(
 	outputVideoFilePath string, // Empty to download subs only
 	outputSubtitleFilePath string, // Empty to download video only
 	finalOutput io.WriteCloser, // Useful on mobile only, pass nil to not use; only one of either video or subtitles allowed if non-nil
-	priority int,
+	priorityData binding.Int,
 	statusData binding.Int, // Of type DownloadStatus
 	progressData binding.Float,
 ) (*DownloadHandle, error) {
@@ -150,6 +151,7 @@ func (d *Downloads) Add(
 		Cancel:   cancel,
 		Status:   statusData,
 		Progress: progressData,
+		Priority: priorityData,
 		Episode:  episode,
 	}
 	handle.Status.Set(int(DownloadNotStarted))
@@ -182,11 +184,31 @@ func (d *Downloads) Add(
 	handle.Do = func() error {
 		handle.Status.Set(int(DownloadWaiting))
 
-		if err := d.Acquire(dlCtx, priority); err != nil {
+		priority, err := handle.Priority.Get()
+		if err != nil {
+			return err
+		}
+
+		var priorityListener binding.DataListener
+
+		if err := d.Acquire(dlCtx, priority, func(h priosem.Handle) {
+			listener := binding.NewDataListener(func() {
+				priority, err := handle.Priority.Get()
+				if err != nil {
+					return
+				}
+				h.SetPriority(priority)
+			})
+			handle.Priority.AddListener(listener)
+			priorityListener = listener
+		}); err != nil {
 			if errors.Is(err, context.Canceled) {
 				handle.Status.Set(int(DownloadCanceled))
 			}
 			return err
+		}
+		if priorityListener != nil {
+			handle.Priority.RemoveListener(priorityListener)
 		}
 		defer d.Release()
 
