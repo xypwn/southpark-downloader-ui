@@ -97,7 +97,8 @@ const (
 	DownloadNotStarted DownloadStatus = iota
 	DownloadWaiting
 	DownloadFetchingMetadata
-	DownloadDownloading
+	DownloadDownloadingVideo
+	DownloadDownloadingSubtitles
 	DownloadPostprocessing
 	DownloadCopying // Only appears on mobile
 	DownloadDone
@@ -132,12 +133,17 @@ func (d *Downloads) Add(
 	ctx context.Context,
 	episode sp.Episode,
 	tmpDirPath string,
-	outputFilePath string,
-	finalOutput io.WriteCloser, // Useful on mobile only, pass nil to not use
+	outputVideoFilePath string, // Empty to download subs only
+	outputSubtitleFilePath string, // Empty to download video only
+	finalOutput io.WriteCloser, // Useful on mobile only, pass nil to not use; only one of either video or subtitles allowed if non-nil
 	priority int,
 	statusData binding.Int, // Of type DownloadStatus
 	progressData binding.Float,
 ) (*DownloadHandle, error) {
+	if finalOutput != nil && outputVideoFilePath != "" && outputSubtitleFilePath != "" {
+		return nil, errors.New("only one of either video or subtitles allowed when finalOutput is non-nil")
+	}
+
 	dlCtx, cancel := context.WithCancel(ctx)
 	handle := &DownloadHandle{
 		Context:  dlCtx,
@@ -151,7 +157,7 @@ func (d *Downloads) Add(
 		dlCtx,
 		episode,
 		tmpDirPath,
-		outputFilePath,
+		outputVideoFilePath,
 		func(formats []sp.HLSFormat) (sp.HLSFormat, error) {
 			if len(formats) > 0 {
 				return formats[0], nil
@@ -159,15 +165,19 @@ func (d *Downloads) Add(
 				return sp.HLSFormat{}, errors.New("no formats available")
 			}
 		},
+		outputSubtitleFilePath,
 	)
 	dler.OnFinishGetMetadata = func() {
-		handle.Status.Set(int(DownloadDownloading))
+		handle.Status.Set(int(DownloadDownloadingVideo))
 	}
 	dler.OnProgress = func(progress float64, postprocessing bool) {
 		handle.Progress.Set(progress)
 	}
 	dler.OnStartPostprocess = func() {
 		handle.Status.Set(int(DownloadPostprocessing))
+	}
+	dler.OnStartDownloadSubtitles = func() {
+		handle.Status.Set(int(DownloadDownloadingSubtitles))
 	}
 	handle.Do = func() error {
 		handle.Status.Set(int(DownloadWaiting))
@@ -190,7 +200,14 @@ func (d *Downloads) Add(
 		}
 
 		if finalOutput != nil {
-			f, err := os.Open(outputFilePath)
+			var input string
+			if outputVideoFilePath != "" {
+				input = outputVideoFilePath
+			} else if outputSubtitleFilePath != "" {
+				input = outputSubtitleFilePath
+			}
+
+			f, err := os.Open(input)
 			if err != nil {
 				return err
 			}
@@ -202,7 +219,7 @@ func (d *Downloads) Add(
 				return err
 			}
 
-			os.Remove(outputFilePath)
+			os.Remove(outputVideoFilePath)
 		}
 
 		handle.Status.Set(int(DownloadDone))

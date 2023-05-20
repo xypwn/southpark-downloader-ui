@@ -20,6 +20,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+    "github.com/adrg/xdg"
 )
 
 type GUIState struct {
@@ -53,12 +54,14 @@ func newGUI(mainWindow fyne.Window) *GUI {
 
 func (g *GUI) makeGUI() fyne.CanvasObject {
 	return container.NewAppTabs(
-		container.NewTabItem(
-			"Episodes", g.makeEpisodesPanel()),
-		container.NewTabItem(
-			"Downloads", g.makeDownloadsPanel()),
-		container.NewTabItem(
-			"Search", g.makeSearchPanel()),
+		container.NewTabItemWithIcon(
+			"Episodes", theme.ListIcon(), g.makeEpisodesPanel()),
+		container.NewTabItemWithIcon(
+			"Downloads", theme.DownloadIcon(), g.makeDownloadsPanel()),
+		container.NewTabItemWithIcon(
+			"Search", theme.SearchIcon(), g.makeSearchPanel()),
+        container.NewTabItemWithIcon(
+            "Preferences", theme.SettingsIcon(), g.makePreferencesPanel()),
 	)
 }
 
@@ -305,7 +308,7 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 				loader.Show()
 				loadingBar.SetActive("Infinite")
 				statusText.Set("Fetching metadata")
-			case DownloadDownloading:
+			case DownloadDownloadingVideo:
 				loader.Show()
 				loadingBar.SetActive("Progress")
 				// Text handled by progress
@@ -336,7 +339,7 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 			return
 		}
 		var action string
-		if DownloadStatus(s) == DownloadDownloading {
+		if DownloadStatus(s) == DownloadDownloadingVideo {
 			action = "Downloading"
 		} else {
 			action = "Postprocessing"
@@ -375,66 +378,89 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 		theme.DownloadIcon(),
 		func() {
 			baseName := sp.GetDownloadOutputFileName(episode)
-			saveDialog := dialog.NewFileSave(
-				func(out fyne.URIWriteCloser, err error) {
-					if out == nil {
-						return
-					}
-					if err != nil {
-						out.Close()
-						dialog.ShowError(err, g.MainWindow)
-						return
-					}
+            save := func(
+                // Useful on mobile only; if non-nil,
+                // output gets saved to a temporary
+                // file before being copied to finalOut
+                finalOut fyne.URIWriteCloser,
+            ) {
+                storageBase := fyne.CurrentApp().Storage().RootURI().Path()
+                tmpDir := path.Join(storageBase, "tmp_"+baseName)
+                var outVidFile string
+                var outSubFile string
+                if finalOut == nil {
+					outPath := fyne.CurrentApp().Preferences().StringWithFallback("DownloadURI", xdg.UserDirs.Download)
+                    outVidFile = path.Join(outPath, baseName+".mp4")
+                    outSubFile = path.Join(outPath, baseName+".vtt")
+                } else {
+                    outVidFile = path.Join(storageBase, baseName+".mp4")
+                }
 
-					//dialog.ShowInformation("Path", out.URI().String(), g.MainWindow)
+                handle, err := g.Downloads.Add(
+                    context.Background(),
+                    episode,
+                    tmpDir,
+                    outVidFile,
+					outSubFile,
+                    finalOut,
+                    0,
+                    status,
+                    progress,
+                )
+                handle.StatusText = statusText
+                if err != nil {
+                    if finalOut != nil {
+                        finalOut.Close()
+                    }
+                    dialog.ShowError(err, g.MainWindow)
+                    return
+                }
 
-					storageBase := fyne.CurrentApp().Storage().RootURI().Path()
-					tmpDir := path.Join(storageBase, "tmp_"+baseName)
-					outFile := path.Join(storageBase, baseName+".mp4")
-					//tmpDir := path.Join(fyne.CurrentApp().Storage().RootURI().Path(), "tmp_"+baseName)
-					//outFile := path.Join("sdcard", "Spdl", baseName+".mp4")
-					//storage.Writer(uri)
-					handle, err := g.Downloads.Add(
-						context.Background(),
-						episode,
-						tmpDir,
-						outFile,
-						out,
-						0,
-						status,
-						progress,
-					)
-					handle.StatusText = statusText
-					if err != nil {
-						out.Close()
-						dialog.ShowError(err, g.MainWindow)
-						return
-					}
+                cancelButton.OnTapped = func() {
+                    handle.Cancel()
+                    button.SetActive("Download")
+                }
 
-					cancelButton.OnTapped = func() {
-						handle.Cancel()
-						button.SetActive("Download")
-					}
+                button.SetActive("Cancel")
 
-					button.SetActive("Cancel")
+                go func() {
+                    if finalOut != nil {
+                        defer finalOut.Close()
+                    }
+                    defer button.SetActive("Done")
 
-					go func() {
-						defer out.Close()
-						defer button.SetActive("Done")
+                    if err := handle.Do(); err != nil {
+                        if !errors.Is(err, context.Canceled) {
+                            dialog.ShowError(err, g.MainWindow)
+                        }
+                        return
+                    }
+                }()
+            }
 
-						if err := handle.Do(); err != nil {
-							if !errors.Is(err, context.Canceled) {
-								dialog.ShowError(err, g.MainWindow)
-							}
-							return
-						}
-					}()
-				},
-				g.MainWindow,
-			)
-			saveDialog.SetFilter(storage.NewExtensionFileFilter([]string{".mp4"}))
-			saveDialog.SetFileName(baseName + ".mp4")
-			saveDialog.Show()
+            if fyne.CurrentDevice().IsMobile() {
+                saveDialog := dialog.NewFileSave(
+                    func(out fyne.URIWriteCloser, err error) {
+                        if err != nil {
+                            if out != nil {
+                                out.Close()
+                            }
+                            dialog.ShowError(err, g.MainWindow)
+                            return
+                        }
+                        if out == nil {
+                            return
+                        }
+                        save(out)
+                    },
+                    g.MainWindow,
+                )
+                saveDialog.SetFilter(storage.NewExtensionFileFilter([]string{".mp4"}))
+                saveDialog.SetFileName(baseName + ".mp4")
+                saveDialog.Show()
+            } else {
+                save(nil)
+            }
 		},
 	)
 
@@ -666,6 +692,59 @@ func (g *GUI) makeSearchPanel() fyne.CanvasObject {
 		nil,
 		results,
 	)
+}
+
+func (g *GUI) makePreferencesPanel() fyne.CanvasObject {
+    getDLPathEntryPath := func() string {
+        return fyne.CurrentApp().Preferences().StringWithFallback("DownloadURI", xdg.UserDirs.Download)
+    }
+    dlPathButton := widget.NewButtonWithIcon("", theme.FolderOpenIcon(), func() {
+        fo := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
+            if err != nil {
+                dialog.ShowError(err, g.MainWindow)
+                return
+            }
+            if uri == nil {
+                return
+            }
+            fyne.CurrentApp().Preferences().SetString("DownloadURI", uri.Path())
+        }, g.MainWindow)
+        uri := storage.NewFileURI(getDLPathEntryPath())
+        list, err := storage.ListerForURI(uri)
+        if err == nil {
+            fo.SetLocation(list)
+        }
+        fo.Show()
+    })
+    dlPathLabel := widget.NewLabel("Download Save Path:")
+    dlPathEntry := widget.NewEntry()
+    dlPathEntry.OnChanged = func(s string) {
+        fyne.CurrentApp().Preferences().SetString("DownloadURI", s)
+    }
+    dlPathEntry.Validator = func(s string) error {
+        uri := storage.NewFileURI(s)
+        canList, err := storage.CanList(uri)
+        if err != nil {
+            return err
+        }
+        if !canList {
+            return errors.New("cannot list URI")
+        }
+        return nil
+    }
+    dlPathEntry.SetText(getDLPathEntryPath())
+    fyne.CurrentApp().Preferences().AddChangeListener(func() {
+        dlPathEntry.SetText(getDLPathEntryPath())
+    })
+    return container.NewVBox(
+        container.NewBorder(
+            nil,
+            nil,
+            dlPathLabel,
+            dlPathButton,
+            dlPathEntry,
+        ),
+    )
 }
 
 func makeProgressBarInfiniteTop() fyne.CanvasObject {

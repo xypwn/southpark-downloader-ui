@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	fyne.io/fyne/v2 v2.3.4
+	github.com/adrg/xdg v0.4.0
 	github.com/yapingcat/gomedia v0.0.0-20230509123117-a10a39c01cdf
 )
 
