@@ -10,56 +10,6 @@ import (
 )
 
 func (g *GUI) makeDownloadsPanel() fyne.CanvasObject {
-	episodes := widget.NewListWithData(
-		g.Downloads.Handles,
-		func() fyne.CanvasObject {
-			label := widget.NewLabel("")
-			label.Wrapping = fyne.TextWrapWord
-			return label
-		},
-		func(item binding.DataItem, obj fyne.CanvasObject) {
-			v, err := item.(binding.Untyped).Get()
-			if err != nil {
-				return
-			}
-			handle := v.(*DownloadHandle)
-
-			label := obj.(*widget.Label)
-
-			label.SetText(fmt.Sprintf(
-				"S%v E%v: %v",
-				handle.Episode.SeasonNumber,
-				handle.Episode.EpisodeNumber,
-				handle.Episode.Title,
-			))
-		},
-	)
-
-	statuses := widget.NewListWithData(
-		g.Downloads.Handles,
-		func() fyne.CanvasObject {
-			label := widget.NewLabel("PLACEHOLDER")
-			label.Wrapping = fyne.TextWrapWord
-			return label
-		},
-		func(item binding.DataItem, obj fyne.CanvasObject) {
-			v, err := item.(binding.Untyped).Get()
-			if err != nil {
-				return
-			}
-			handle := v.(*DownloadHandle)
-
-			label := obj.(*widget.Label)
-
-			// Shitty hack, but we only want the label
-			// to be bound once
-			if label.Text == "PLACEHOLDER" {
-				label.Text = ""
-				label.Bind(handle.StatusText)
-			}
-		},
-	)
-
 	priorityStrs := []string {
 		"Very High",
 		"High",
@@ -68,13 +18,18 @@ func (g *GUI) makeDownloadsPanel() fyne.CanvasObject {
 		"Very Low",
 	}
 
-	priorities := widget.NewListWithData(
+	downloads := widget.NewListWithData(
 		g.Downloads.Handles,
 		func() fyne.CanvasObject {
-			sel := widget.NewSelect(priorityStrs, func(string) {})
-			sel.Hide()
-			sel.SetSelected("Normal")
-			return sel
+			cnt := container.NewMax(container.NewBorder(
+				nil,
+				nil,
+				widget.NewLabel("PLACEHOLDER"),
+				widget.NewSelect([]string{"PLACEHOLDER"}, func(string) {}),
+				widget.NewLabel("PLACEHOLDER"),
+			))
+			cnt.Hide()
+			return cnt
 		},
 		func(item binding.DataItem, obj fyne.CanvasObject) {
 			v, err := item.(binding.Untyped).Get()
@@ -83,29 +38,49 @@ func (g *GUI) makeDownloadsPanel() fyne.CanvasObject {
 			}
 			handle := v.(*DownloadHandle)
 
-			sel := obj.(*widget.Select)
+			cnt := obj.(*fyne.Container)
 
-			// Shitty hack, but we only want the selection
-			// to be bound once
-			if sel.Hidden {
-				sel.OnChanged = func(s string) {
-					var prio int
-					for i, v := range priorityStrs {
-						if v == s {
-							prio = i - 2
-							break
+			if cnt.Hidden {
+				label := widget.NewLabel(fmt.Sprintf(
+					"S%v E%v: %v",
+					handle.Episode.SeasonNumber,
+					handle.Episode.EpisodeNumber,
+					handle.Episode.Title,
+				))
+
+				status := widget.NewLabelWithData(handle.StatusText)
+				status.Alignment = fyne.TextAlignTrailing
+
+				priority := widget.NewSelect(priorityStrs,
+					func(s string) {
+						var prio int
+						for i, v := range priorityStrs {
+							if v == s {
+								prio = i - 2
+								break
+							}
 						}
-					}
-					_ = handle.Priority.Set(prio)
-				}
-				sel.Show()
+						_ = handle.Priority.Set(prio)
+					},
+				)
+				priority.SetSelected("Normal")
+
+				cnt.RemoveAll()
+				cnt.Add(container.NewBorder(
+					nil,
+					nil,
+					label,
+					priority,
+					status,
+				))
+				cnt.Show()
 			}
 		},
 	)
 
-	hs2 := container.NewHSplit(statuses, priorities)
-	hs2.Offset = 0.5
-	hs1 := container.NewHSplit(episodes, hs2)
-	hs1.Offset = 0.6
-	return hs1
+	downloads.OnSelected = func(widget.ListItemID) {
+		downloads.UnselectAll()
+	}
+
+	return downloads
 }
