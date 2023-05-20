@@ -349,11 +349,11 @@ type HLSStreamKey struct {
 
 type HLSStreamSegment struct {
 	Duration float64
-	URL string
+	URL      string
 }
 
 type HLSStream struct {
-	Key         HLSStreamKey
+	Key      HLSStreamKey
 	Segments []HLSStreamSegment
 }
 
@@ -402,7 +402,7 @@ func getHLSStream(ctx context.Context, hlsURL string) (HLSStream, error) {
 				return HLSStream{}, errors.New("no segment duration found")
 			}
 			segments = append(segments, HLSStreamSegment{
-				URL: line,
+				URL:      line,
 				Duration: duration,
 			})
 			duration = 0
@@ -482,7 +482,7 @@ func ConvertTSToMP4(tsInput io.Reader, mp4Output io.WriteSeeker) error {
 }
 
 type EpisodePart struct {
-	Stream HLSStream
+	Stream          HLSStream
 	VTTSubtitleURLs []string
 }
 
@@ -530,7 +530,7 @@ func GetEpisodeParts(ctx context.Context, e Episode, selectFormat func([]HLSForm
 		}
 
 		parts = append(parts, EpisodePart{
-			Stream: stream,
+			Stream:          stream,
 			VTTSubtitleURLs: vttSubtitleURLs,
 		})
 	}

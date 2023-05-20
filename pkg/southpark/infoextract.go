@@ -369,27 +369,27 @@ type searchData struct {
 	Response struct {
 		Items []struct {
 			Media struct {
-				Image    struct {
-					URL         string  `json:"url"`
+				Image struct {
+					URL string `json:"url"`
 				} `json:"image"`
-				LockedLabel   string `json:"lockedLabel"`
+				LockedLabel string `json:"lockedLabel"`
 			} `json:"media"`
 			Meta struct {
 				SubHeader   string `json:"subHeader"`
 				Description string `json:"description"`
 			} `json:"meta"`
-			URL       string `json:"url"`
+			URL string `json:"url"`
 		} `json:"items"`
 	} `json:"response"`
 }
 
 type SearchResult struct {
-	Language Language
-	Unavailable bool
+	Language        Language
+	Unavailable     bool
 	RawThumbnailURL RawThumbnailURL
-	Title string
-	Description string
-	URL string
+	Title           string
+	Description     string
+	URL             string
 }
 
 func Search(
@@ -432,12 +432,12 @@ func Search(
 			return nil, fmt.Errorf("get search result language: %w", err)
 		}
 		res = append(res, SearchResult{
-			Language: urlLang,
-			Unavailable: v.Media.LockedLabel != "",
-			RawThumbnailURL: RawThumbnailURL("https:"+v.Media.Image.URL),
-			Title: v.Meta.SubHeader,
-			Description: v.Meta.Description,
-			URL: v.URL,
+			Language:        urlLang,
+			Unavailable:     v.Media.LockedLabel != "",
+			RawThumbnailURL: RawThumbnailURL("https:" + v.Media.Image.URL),
+			Title:           v.Meta.SubHeader,
+			Description:     v.Meta.Description,
+			URL:             v.URL,
 		})
 	}
 	return res, nil

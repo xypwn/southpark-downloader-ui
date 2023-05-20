@@ -15,15 +15,15 @@ import (
 type FetchableResource struct {
 	widget.BaseWidget
 
-	mtx        sync.Mutex
-	ctx        context.Context
-	fetching atomic.Bool
-	fetch func(context.Context) (any, error)
-	makeContent func(any) fyne.CanvasObject
+	mtx            sync.Mutex
+	ctx            context.Context
+	fetching       atomic.Bool
+	fetch          func(context.Context) (any, error)
+	makeContent    func(any) fyne.CanvasObject
 	makeErrContent func(error) fyne.CanvasObject
-	err        error
-	onErr      func(error)
-	content    *union.Union
+	err            error
+	onErr          func(error)
+	content        *union.Union
 }
 
 func New(
@@ -34,9 +34,9 @@ func New(
 	makeErrContent func(error) fyne.CanvasObject,
 ) *FetchableResource {
 	res := &FetchableResource{
-		ctx: ctx,
-		fetch: fetch,
-		makeContent: makeContent,
+		ctx:            ctx,
+		fetch:          fetch,
+		makeContent:    makeContent,
 		makeErrContent: makeErrContent,
 		content: union.New(
 			union.NewItem(

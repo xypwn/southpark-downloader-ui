@@ -12,7 +12,7 @@ func main() {
 	app := app.NewWithID("org.nobrain.southparkdownloaderui")
 	window := app.NewWindow("Southpark Downloader")
 
-	gui := newGUI(window)
+	gui := newGUI(app, window)
 
 	err := gui.Cache.UpdateRegion(context.Background())
 	if err != nil {

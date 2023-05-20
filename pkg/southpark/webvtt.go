@@ -21,7 +21,7 @@ func mergeVTTSubtitles(parts [][]byte, durations []float64) ([]byte, error) {
 		if err := parseVTTSubtitles(
 			part,
 			func(comment string) {
-				res.WriteString(fmt.Sprintf("NOTE Part %v %v\n\n", i + 1, comment))
+				res.WriteString(fmt.Sprintf("NOTE Part %v %v\n\n", i+1, comment))
 			},
 			func(id string, tStart float64, tEnd float64, settings []string, transcript string) {
 				timestampString := func(t float64) string {
@@ -43,13 +43,13 @@ func mergeVTTSubtitles(parts [][]byte, durations []float64) ([]byte, error) {
 				}
 
 				if id != "" {
-					res.WriteString(fmt.Sprintf("%v:%v\n", i + 1, id))
+					res.WriteString(fmt.Sprintf("%v:%v\n", i+1, id))
 				}
 
 				res.WriteString(fmt.Sprintf(
 					"%v --> %v\n%v\n\n",
-					timestampString(tStart + tOffset),
-					timestampString(tEnd + tOffset),
+					timestampString(tStart+tOffset),
+					timestampString(tEnd+tOffset),
 					transcript,
 				))
 			},
@@ -132,7 +132,7 @@ func parseVTTSubtitles(
 					var res float64
 					var multiplier float64 = 1
 					sp := strings.Split(s, ":")
-					for i := len(sp)-1; i >= 0; i-- {
+					for i := len(sp) - 1; i >= 0; i-- {
 						x, err := strconv.ParseFloat(sp[i], 64)
 						if err != nil {
 							return 0, err

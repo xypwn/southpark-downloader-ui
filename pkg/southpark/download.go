@@ -1,11 +1,11 @@
 package southpark
 
 import (
-	"os"
-	"path"
+	"context"
 	"fmt"
 	"io"
-	"context"
+	"os"
+	"path"
 )
 
 func GetDownloadOutputFileName(episode Episode) string {
@@ -19,38 +19,38 @@ func GetDownloadOutputFileName(episode Episode) string {
 }
 
 type Downloader struct {
-	OnFinishGetMetadata func()
-	OnStartPostprocess  func()
-	OnProgress  func(_ float64, postprocessing bool) // If not postprocessing, it is downloading
+	OnFinishGetMetadata      func()
+	OnStartPostprocess       func()
+	OnProgress               func(_ float64, postprocessing bool) // If not postprocessing, it is downloading
 	OnStartDownloadSubtitles func()
 
-	selectFormat   func([]HLSFormat) (HLSFormat, error)
-	ctx            context.Context
-	tmpDirPath     string
-	outputVideoPath string // Empty to download subs only
-    outputSubtitlePath string // Empty to download video only
-	episode        Episode
+	selectFormat       func([]HLSFormat) (HLSFormat, error)
+	ctx                context.Context
+	tmpDirPath         string
+	outputVideoPath    string // Empty to download subs only
+	outputSubtitlePath string // Empty to download video only
+	episode            Episode
 }
 
 func NewDownloader(
-    ctx context.Context,
-    episode Episode,
-    tmpDirPath string,
-    outputVideoPath string, // Empty to download subs only
-    selectFormat func([]HLSFormat) (HLSFormat, error),
-    outputSubtitlePath string, // Empty to download video only
+	ctx context.Context,
+	episode Episode,
+	tmpDirPath string,
+	outputVideoPath string, // Empty to download subs only
+	selectFormat func([]HLSFormat) (HLSFormat, error),
+	outputSubtitlePath string, // Empty to download video only
 ) *Downloader {
 	return &Downloader{
-		OnFinishGetMetadata: func() {},
-		OnStartPostprocess:  func() {},
-		OnProgress:  func(_ float64, postprocessing bool) {},
+		OnFinishGetMetadata:      func() {},
+		OnStartPostprocess:       func() {},
+		OnProgress:               func(_ float64, postprocessing bool) {},
 		OnStartDownloadSubtitles: func() {},
-		selectFormat:        selectFormat,
-		ctx:                 ctx,
-		tmpDirPath:          tmpDirPath,
-		outputVideoPath:      outputVideoPath,
-        outputSubtitlePath: outputSubtitlePath,
-		episode:             episode,
+		selectFormat:             selectFormat,
+		ctx:                      ctx,
+		tmpDirPath:               tmpDirPath,
+		outputVideoPath:          outputVideoPath,
+		outputSubtitlePath:       outputSubtitlePath,
+		episode:                  episode,
 	}
 }
 
@@ -92,7 +92,7 @@ func (d *Downloader) Do() error {
 			if err := os.WriteFile(getSegFileName(currentSegment), frame, 0644); err != nil {
 				return err
 			}
-			d.OnProgress(float64(currentSegment) / float64(totalSegments), false)
+			d.OnProgress(float64(currentSegment)/float64(totalSegments), false)
 			currentSegment++
 			return nil
 		}); err != nil {
@@ -119,7 +119,7 @@ func (d *Downloader) Do() error {
 					break
 				}
 				tsWriter.Write(tsData)
-				d.OnProgress(float64(i) / float64(totalSegments), true)
+				d.OnProgress(float64(i)/float64(totalSegments), true)
 			}
 			tsWriter.Close()
 		}()

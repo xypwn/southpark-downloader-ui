@@ -53,7 +53,7 @@ func (c *Cache) UpdateSeasons(ctx context.Context, language sp.Language) error {
 	c.Lock()
 	defer c.Unlock()
 	c.Seasons[language] = Seasons{
-		Seasons: res,
+		Seasons:    res,
 		SeriesMGID: seriesMGID,
 	}
 
@@ -82,7 +82,7 @@ func (c *Cache) UpdateEpisodes(ctx context.Context, language sp.Language, season
 }
 
 type Seasons struct {
-	Seasons []Season
+	Seasons    []Season
 	SeriesMGID string
 }
 
@@ -109,8 +109,8 @@ type DownloadHandle struct {
 	Context    context.Context
 	Do         func() error // Can be called asynchronously
 	Cancel     func()
-	Status     binding.Int // Of type DownloadStatus
-	Progress   binding.Float // Either download or postprocessing, depending on status
+	Status     binding.Int    // Of type DownloadStatus
+	Progress   binding.Float  // Either download or postprocessing, depending on status
 	StatusText binding.String // Optional, managed by user
 	Episode    sp.Episode
 }
