@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/xypwn/southpark-downloader-ui/pkg/gui/fetchableresource"
@@ -20,7 +19,6 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/adrg/xdg"
 )
 
 func (g *GUI) makeEpisodesPanel() fyne.CanvasObject {
@@ -94,19 +92,6 @@ func (g *GUI) makeSeasonList(language sp.Language) fyne.CanvasObject {
 				}
 				g.Cache.Lock()
 				seasons = g.Cache.Seasons[language].Seasons
-				{
-					var seasonIndices []string
-					for i := range g.Cache.Seasons[language].Seasons {
-						seasonIndices = append(seasonIndices, fmt.Sprintf("%v", i))
-					}
-					g.App.Preferences().SetString(
-						fmt.Sprintf(
-							"KnownSeasons:%v",
-							language.String(),
-						),
-						strings.Join(seasonIndices, "/"),
-					)
-				}
 				g.Cache.Unlock()
 			}
 			return seasons, nil
@@ -192,23 +177,11 @@ func (g *GUI) makeEpisodeList(season Season, seasonIndex int) fyne.CanvasObject 
 				if err != nil {
 					return nil, err
 				}
-
-				g.Cache.Lock()
-				var episodeNumbers []string
-				for i := range g.Cache.Seasons[season.Language].Seasons[seasonIndex].Episodes {
-					episodeNumbers = append(episodeNumbers, fmt.Sprintf("%v", i))
-				}
-				g.App.Preferences().SetString(
-					fmt.Sprintf(
-						"KnownEpisodes:%v:%v",
-						season.Language.String(),
-						seasonIndex,
-					),
-					strings.Join(episodeNumbers, "/"),
-				)
-				g.Cache.Unlock()
 			}
-			return g.Cache.Seasons[season.Language].Seasons[seasonIndex], nil
+			g.Cache.Lock()
+			season := g.Cache.Seasons[season.Language].Seasons[seasonIndex]
+			g.Cache.Unlock()
+			return season, nil
 		},
 		func(resource any) fyne.CanvasObject {
 			season := resource.(Season)
@@ -326,7 +299,7 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 				var outVidFile string
 				var outSubFile string
 				if finalOut == nil {
-					outPath := g.App.Preferences().StringWithFallback("DownloadURI", xdg.UserDirs.Download)
+					outPath := g.getDownloadPath()
 					outVidFile = path.Join(outPath, baseName+".mp4")
 					outSubFile = path.Join(outPath, baseName+".vtt")
 				} else {
@@ -375,22 +348,6 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 						return
 					}
 					handle.StatusText.Set("Done")
-
-					{
-						// TODO: Fix concurrency issues in DownloadedEpisodes preferences field
-						dlEps := g.App.Preferences().StringWithFallback("DownloadedEpisodes", "")
-						var sp []string
-						if dlEps != "" {
-							sp = strings.Split(dlEps, "/")
-						}
-						sp = append(sp, fmt.Sprintf(
-							"%v:%v:%v",
-							episode.Language.String(),
-							episode.SeasonNumber,
-							episode.EpisodeNumber,
-						))
-						g.App.Preferences().SetString("DownloadedEpisodes", strings.Join(sp, "/"))
-					}
 				}()
 			}
 

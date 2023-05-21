@@ -3,6 +3,7 @@ package main
 import (
 	"sync"
 
+	"github.com/adrg/xdg"
 	"github.com/xypwn/southpark-downloader-ui/pkg/gui/union"
 	sp "github.com/xypwn/southpark-downloader-ui/pkg/southpark"
 
@@ -80,4 +81,12 @@ func (g *GUI) newWindow(title string) fyne.Window {
 		g.CurrentWindow.Set(prevWin)
 	})
 	return win
+}
+
+func (g *GUI) getDownloadPath() string {
+	return g.App.Preferences().StringWithFallback("DownloadPath", xdg.UserDirs.Download)
+}
+
+func (g *GUI) setDownloadPath(path string) {
+	g.App.Preferences().SetString("DownloadPath", path)
 }

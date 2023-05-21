@@ -296,10 +296,10 @@ type Episode struct {
 	Language        Language
 }
 
-func GetEpisodes(ctx context.Context, season Season) ([]Episode, error) {
+func GetEpisodes(ctx context.Context, season Season) (episodes []Episode, seasonMGID string, err error) {
 	baseURL, err := getSPBaseURL(season.URL)
 	if err != nil {
-		return nil, fmt.Errorf("get base URL: %w", err)
+		return nil, "", fmt.Errorf("get base URL: %w", err)
 	}
 
 	// Get the 'Show More' API call URL
@@ -307,12 +307,12 @@ func GetEpisodes(ctx context.Context, season Season) ([]Episode, error) {
 	{
 		props, err := getWebsiteDataPropsFromURL(ctx, season.URL, "LineList", "video-guide")
 		if err != nil {
-			return nil, fmt.Errorf("retrieve 'show more' URL in website data JSON: %w", err)
+			return nil, "", fmt.Errorf("retrieve 'show more' URL in website data JSON: %w", err)
 		}
 
 		index := props.Filters.SelectedIndex
 		if index < 0 || index >= len(props.Filters.Items) {
-			return nil, errors.New("invalid JSON data: index out of bounds")
+			return nil, "", errors.New("invalid JSON data: index out of bounds")
 		}
 
 		showMoreURL = props.Filters.Items[index].URL
@@ -323,25 +323,31 @@ func GetEpisodes(ctx context.Context, season Season) ([]Episode, error) {
 	{
 		body, err := httputils.GetBodyWithContext(ctx, baseURL+showMoreURL)
 		if err != nil {
-			return nil, fmt.Errorf("get episodes: %w", err)
+			return nil, "", fmt.Errorf("get episodes: %w", err)
 		}
 
 		var props websiteDataProps
 		err = json.Unmarshal(body, &props)
 		if err != nil {
-			return nil, fmt.Errorf("parse episodes from JSON: %w", err)
+			return nil, "", fmt.Errorf("parse episodes from JSON: %w", err)
 		}
+
+		if len(props.Items) == 0 {
+			return nil, "", fmt.Errorf("no episodes found in season")
+		}
+
+		seasonMGID = props.Items[0].Meta.SeasonMGID
 
 		for _, v := range props.Items {
 			// Probably not the best way, but the URL always ends with "-seasonNum-XX-ep-YY",
 			// so we just get the split separated by "-" as the episode number
 			sp := strings.Split(v.URL, "-")
 			if len(sp) < 1 {
-				return nil, errors.New("invalid episode URL: unable to find episode number")
+				return nil, "", errors.New("invalid episode URL: unable to find episode number")
 			}
 			episodeNum, err := strconv.ParseInt(sp[len(sp)-1], 10, 32)
 			if err != nil {
-				return nil, fmt.Errorf("invalid episode URL: unable to parse episode number: %w", err)
+				return nil, "", fmt.Errorf("invalid episode URL: unable to parse episode number: %w", err)
 			}
 			res = append(res, Episode{
 				SeasonNumber:    season.SeasonNumber,
@@ -362,7 +368,7 @@ func GetEpisodes(ctx context.Context, season Season) ([]Episode, error) {
 		return res[i].EpisodeNumber < res[j].EpisodeNumber
 	})
 
-	return res, nil
+	return res, seasonMGID, nil
 }
 
 type searchData struct {

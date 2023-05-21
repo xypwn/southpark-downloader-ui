@@ -9,12 +9,11 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/adrg/xdg"
 )
 
 func (g *GUI) makePreferencesPanel() fyne.CanvasObject {
 	getDLPathEntryPath := func() string {
-		return g.App.Preferences().StringWithFallback("DownloadURI", xdg.UserDirs.Download)
+		return g.getDownloadPath()
 	}
 	dlPathButton := widget.NewButtonWithIcon("", theme.FolderOpenIcon(), func() {
 		fo := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
@@ -25,7 +24,7 @@ func (g *GUI) makePreferencesPanel() fyne.CanvasObject {
 			if uri == nil {
 				return
 			}
-			g.App.Preferences().SetString("DownloadURI", uri.Path())
+			g.setDownloadPath(uri.Path())
 		}, g.CurrentWindow.Get())
 		uri := storage.NewFileURI(getDLPathEntryPath())
 		list, err := storage.ListerForURI(uri)
@@ -37,7 +36,7 @@ func (g *GUI) makePreferencesPanel() fyne.CanvasObject {
 	dlPathLabel := widget.NewLabel("Download Save Path:")
 	dlPathEntry := widget.NewEntry()
 	dlPathEntry.OnChanged = func(s string) {
-		g.App.Preferences().SetString("DownloadURI", s)
+		g.setDownloadPath(s)
 	}
 	dlPathEntry.Validator = func(s string) error {
 		uri := storage.NewFileURI(s)

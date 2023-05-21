@@ -15,7 +15,7 @@ import (
 )
 
 type Cache struct {
-	sync.RWMutex
+	sync.RWMutex `json:"-"`
 	Region  sp.RegionInfo
 	Seasons map[sp.Language]Seasons
 }
@@ -70,13 +70,14 @@ func (c *Cache) UpdateEpisodes(ctx context.Context, language sp.Language, season
 	season := c.Seasons[language].Seasons[seasonIndex]
 	c.RUnlock()
 
-	episodes, err := sp.GetEpisodes(ctx, season.Season)
+	episodes, seasonMGID, err := sp.GetEpisodes(ctx, season.Season)
 	if err != nil {
 		return err
 	}
 
 	c.Lock()
 	c.Seasons[language].Seasons[seasonIndex].Episodes = episodes
+	c.Seasons[language].Seasons[seasonIndex].SeasonMGID = seasonMGID
 	c.Unlock()
 
 	return nil
@@ -90,6 +91,7 @@ type Seasons struct {
 type Season struct {
 	sp.Season
 	Episodes []sp.Episode
+	SeasonMGID string
 }
 
 type DownloadHandle struct {
