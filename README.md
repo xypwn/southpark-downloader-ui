@@ -48,7 +48,7 @@ To run the program, you have to right-click it, then press open (NOT double-clic
 - [ ] Extract GUI components into internal package & despaghettify
 - [ ] Extract downloader and cache logic into internal package & despaghettify
   - Make downloads persistent after closing the app
-- [ ] Add 'Download All' button to add all episodes of the season to the queue
+- [X] Add 'Download All' button to add all episodes of the season to the queue
 - [ ] Allow directly downloading search results & fix search in general
 - [ ] Make Android usable and useful
   - Figure out a way to save files without direct access to SAF
