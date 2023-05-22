@@ -38,3 +38,12 @@ Open a terminal and run `chmod +x <binary file name>`. This makes it so you can 
 Apple doesn't like it if you run programs that aren't certified by Apple.
 
 To run the program, you have to right-click it, then press open (NOT double-click!). It will show a warning and ask you if you really want to run the program. Press confirm.
+
+## Roadmap
+- [X] Write a custom data binding type using generics (fyne is too restrictive)
+  - [ ] Use it instead of fyne's bindings
+- [X] Write tests
+  - [X] `pkg/data`
+  - [X] `pkg/prioritysemaphore`
+- [ ] Extract GUI components into internal package & despaghettify
+- [ ] Extract downloader and cache logic into internal package & despaghettify
