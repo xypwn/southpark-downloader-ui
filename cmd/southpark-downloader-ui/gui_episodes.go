@@ -186,11 +186,31 @@ func (g *GUI) makeEpisodeList(season Season, seasonIndex int) fyne.CanvasObject 
 		func(resource any) fyne.CanvasObject {
 			season := resource.(Season)
 
+			var startDownloadFuncs []func()
 			vb := container.NewVBox()
 			for _, v := range season.Episodes {
-				vb.Add(g.makeEpisode(v))
+				obj, startDownload := g.makeEpisode(v)
+				vb.Add(obj)
+				startDownloadFuncs = append(startDownloadFuncs, startDownload)
 			}
-			return container.NewVScroll(vb)
+
+			downloadAllButton := widget.NewButtonWithIcon(
+				"Download All",
+				theme.DownloadIcon(),
+				func() {
+					for _, fn := range startDownloadFuncs {
+						fn()
+					}
+				},
+			)
+
+			return container.NewBorder(
+				downloadAllButton,
+				nil,
+				nil,
+				nil,
+				container.NewVScroll(vb),
+			)
 		},
 		func(err error) fyne.CanvasObject {
 			label := widget.NewLabelWithStyle(
@@ -205,10 +225,11 @@ func (g *GUI) makeEpisodeList(season Season, seasonIndex int) fyne.CanvasObject 
 			return container.NewBorder(label, button, nil, nil)
 		},
 	)
+
 	return episodeList
 }
 
-func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
+func (g *GUI) makeEpisode(episode sp.Episode) (obj fyne.CanvasObject, startDownload func()) {
 	priority := binding.NewInt()
 	statusText := binding.NewString()
 	progress := binding.NewFloat()
@@ -283,10 +304,10 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 		func() {},
 	)
 
-	downloadButton := widget.NewButtonWithIcon(
-		"",
-		theme.DownloadIcon(),
-		func() {
+	if episode.Unavailable {
+		startDownload = func() {}
+	} else {
+		startDownload = func() {
 			baseName := sp.GetDownloadOutputFileName(episode)
 			save := func(
 				// Useful on mobile only; if non-nil,
@@ -374,6 +395,14 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 			} else {
 				save(nil)
 			}
+		}
+	}
+
+	downloadButton := widget.NewButtonWithIcon(
+		"",
+		theme.DownloadIcon(),
+		func() {
+			startDownload()
 		},
 	)
 
@@ -407,7 +436,7 @@ func (g *GUI) makeEpisode(episode sp.Episode) fyne.CanvasObject {
 		episode.Description,
 		loader,
 		button,
-	)
+	), startDownload
 }
 
 func (g *GUI) makeEpisodeBaseView(rawThumbnailURL sp.RawThumbnailURL, title string, description string, thumbnailOverlay fyne.CanvasObject, button fyne.CanvasObject) fyne.CanvasObject {
