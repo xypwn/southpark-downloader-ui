@@ -6,7 +6,7 @@ import (
 )
 
 type Semaphore struct {
-	sync.Mutex
+	mtx sync.Mutex
 	waiters waiters
 	val     int
 	size    int
@@ -20,19 +20,19 @@ func New(n int) *Semaphore {
 
 func (s *Semaphore) Acquire(ctx context.Context, priority int, waiting func(Handle)) error {
 	if s.val < s.size {
-		s.Lock()
+		s.mtx.Lock()
 		s.val++
-		s.Unlock()
+		s.mtx.Unlock()
 		return nil
 	}
 
-	s.Lock()
+	s.mtx.Lock()
 	waiter := &waiter{
 		priority: priority,
 		ready:    make(chan struct{}),
 	}
 	s.waiters.insert(waiter)
-	s.Unlock()
+	s.mtx.Unlock()
 
 	waiting(Handle{
 		semaphore: s,
@@ -41,20 +41,20 @@ func (s *Semaphore) Acquire(ctx context.Context, priority int, waiting func(Hand
 
 	select {
 	case <-ctx.Done():
-		s.Lock()
+		s.mtx.Lock()
 		s.waiters.remove(waiter)
-		s.Unlock()
+		s.mtx.Unlock()
 		return ctx.Err()
 	case <-waiter.ready:
-		s.Lock()
+		s.mtx.Lock()
 		s.val++
-		s.Unlock()
+		s.mtx.Unlock()
 		return nil
 	}
 }
 
 func (s *Semaphore) Release() {
-	s.Lock()
+	s.mtx.Lock()
 	s.val--
 
 	for i := 0; i < s.size-s.val; i++ {
@@ -64,7 +64,7 @@ func (s *Semaphore) Release() {
 		}
 	}
 
-	s.Unlock()
+	s.mtx.Unlock()
 }
 
 type Handle struct {
@@ -73,14 +73,14 @@ type Handle struct {
 }
 
 func (h *Handle) GetPriority() int {
-	h.semaphore.Lock()
+	h.semaphore.mtx.Lock()
 	priority := h.waiter.priority
-	h.semaphore.Unlock()
+	h.semaphore.mtx.Unlock()
 	return priority
 }
 
 func (h *Handle) SetPriority(priority int) (ok bool) {
-	h.semaphore.Lock()
+	h.semaphore.mtx.Lock()
 
 	// Re-insert with updated priority
 	ok = h.semaphore.waiters.remove(h.waiter)
@@ -89,7 +89,7 @@ func (h *Handle) SetPriority(priority int) (ok bool) {
 		h.semaphore.waiters.insert(h.waiter)
 	}
 
-	h.semaphore.Unlock()
+	h.semaphore.mtx.Unlock()
 
 	return ok
 }
