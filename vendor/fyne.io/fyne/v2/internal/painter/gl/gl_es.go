@@ -83,6 +83,8 @@ func (p *painter) Init() {
 	p.program = p.createProgram("simple_es")
 	p.singleChannelProgram = p.createProgram("single_channel_es")
 	p.lineProgram = p.createProgram("line_es")
+	p.rectangleProgram = p.createProgram("rectangle_es")
+	p.roundRectangleProgram = p.createProgram("round_rectangle_es")
 }
 
 type esContext struct{}
@@ -260,6 +262,10 @@ func (c *esContext) TexParameteri(target, param uint32, value int32) {
 
 func (c *esContext) Uniform1f(uniform Uniform, v float32) {
 	gl.Uniform1f(int32(uniform), v)
+}
+
+func (c *esContext) Uniform2f(uniform Uniform, v0, v1 float32) {
+	gl.Uniform2f(int32(uniform), v0, v1)
 }
 
 func (c *esContext) Uniform4f(uniform Uniform, v0, v1, v2, v3 float32) {

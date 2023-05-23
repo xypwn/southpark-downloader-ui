@@ -98,7 +98,7 @@ func (c *checkRenderer) updateResource() {
 }
 
 func (c *checkRenderer) updateFocusIndicator() {
-	if c.check.Disabled() {
+	if c.check.disabled {
 		c.focusIndicator.FillColor = color.Transparent
 	} else if c.check.focused {
 		c.focusIndicator.FillColor = theme.FocusColor()
@@ -236,9 +236,8 @@ func (c *Check) CreateRenderer() fyne.WidgetRenderer {
 // NewCheck creates a new check widget with the set label and change handler
 func NewCheck(label string, changed func(bool)) *Check {
 	c := &Check{
-		DisableableWidget: DisableableWidget{},
-		Text:              label,
-		OnChanged:         changed,
+		Text:      label,
+		OnChanged: changed,
 	}
 
 	c.ExtendBaseWidget(c)

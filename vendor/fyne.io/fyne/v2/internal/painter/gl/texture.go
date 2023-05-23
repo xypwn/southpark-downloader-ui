@@ -159,24 +159,6 @@ func (p *painter) newGlRasterTexture(obj fyne.CanvasObject) Texture {
 	return p.imgToTexture(rast.Generator(int(width), int(height)), rast.ScaleMode)
 }
 
-func (p *painter) newGlRectTexture(obj fyne.CanvasObject) Texture {
-	rect := obj.(*canvas.Rectangle)
-	if rect.StrokeColor != nil && rect.StrokeWidth > 0 {
-		return p.newGlStrokedRectTexture(rect)
-	}
-	if rect.FillColor == nil {
-		return noTexture
-	}
-	return p.imgToTexture(image.NewUniform(rect.FillColor), canvas.ImageScaleSmooth)
-}
-
-func (p *painter) newGlStrokedRectTexture(obj fyne.CanvasObject) Texture {
-	rect := obj.(*canvas.Rectangle)
-	raw := paint.DrawRectangle(rect, paint.VectorPad(rect), p.textureScale)
-
-	return p.imgToTexture(raw, canvas.ImageScaleSmooth)
-}
-
 func (p *painter) newGlTextTexture(obj fyne.CanvasObject) Texture {
 	text := obj.(*canvas.Text)
 
@@ -185,8 +167,8 @@ func (p *painter) newGlTextTexture(obj fyne.CanvasObject) Texture {
 	height := int(math.Ceil(float64(p.textureScale(bounds.Height))))
 	img := image.NewGray(image.Rect(0, 0, width, height))
 
-	face, measureFace := paint.CachedFontFace(text.TextStyle, text.TextSize*p.canvas.Scale(), p.texScale)
-	paint.DrawString(img, text.Text, color.White, face, measureFace, text.TextSize, p.pixScale, height, text.TextStyle.TabWidth)
+	face := paint.CachedFontFace(text.TextStyle, text.TextSize*p.canvas.Scale(), p.texScale)
+	paint.DrawString(img, text.Text, color.White, face.Fonts, text.TextSize, p.pixScale, text.TextStyle.TabWidth)
 	return p.imgToTexture(img, canvas.ImageScaleSmooth)
 }
 
