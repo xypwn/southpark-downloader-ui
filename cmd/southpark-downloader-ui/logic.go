@@ -98,6 +98,7 @@ type DownloadHandle struct {
 	Context    context.Context
 	Do         func() error // Can be called asynchronously
 	Cancel     func()
+	Waiting    binding.Bool
 	Priority   binding.Int
 	StatusText binding.String
 	Progress   binding.Float // -1 if current status has no progress estimate
@@ -137,6 +138,7 @@ func (d *Downloads) Add(
 	handle := &DownloadHandle{
 		Context:  dlCtx,
 		Cancel:   cancel,
+		Waiting:  binding.NewBool(),
 		Priority: priorityData,
 		StatusText: statusTextData,
 		Progress: progressData,
@@ -178,6 +180,8 @@ func (d *Downloads) Add(
 		_ = handle.StatusText.Set("Waiting")
 		_ = handle.Progress.Set(-1)
 
+		_ = handle.Waiting.Set(true)
+
 		priority, err := handle.Priority.Get()
 		if err != nil {
 			return err
@@ -206,6 +210,8 @@ func (d *Downloads) Add(
 			handle.Priority.RemoveListener(priorityListener)
 		}
 		defer d.Release()
+
+		_ = handle.Waiting.Set(false)
 
 		if err := dler.Do(); err != nil {
 			if errors.Is(err, context.Canceled) {

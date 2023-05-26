@@ -65,6 +65,17 @@ func (g *GUI) makeDownloadsPanel() fyne.CanvasObject {
 				)
 				priority.SetSelected("Normal")
 
+				handle.Waiting.AddListener(binding.NewDataListener(
+					func() {
+						waiting, _ := handle.Waiting.Get()
+						if waiting {
+							priority.Enable()
+						} else {
+							priority.Disable()
+						}
+					},
+				))
+
 				cnt.RemoveAll()
 				cnt.Add(container.NewBorder(
 					nil,
