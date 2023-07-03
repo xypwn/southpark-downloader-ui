@@ -217,10 +217,8 @@ var _ desktop.Hoverable = (*divider)(nil)
 
 type divider struct {
 	widget.BaseWidget
-	split          *Split
-	hovered        bool
-	startDragOff   *fyne.Position
-	currentDragPos fyne.Position
+	split   *Split
+	hovered bool
 }
 
 func newDivider(split *Split) *divider {
@@ -252,37 +250,26 @@ func (d *divider) Cursor() desktop.Cursor {
 }
 
 func (d *divider) DragEnd() {
-	d.startDragOff = nil
 }
 
-func (d *divider) Dragged(e *fyne.DragEvent) {
-	if d.startDragOff == nil {
-		d.currentDragPos = d.Position().Add(e.Position)
-		start := e.Position.Subtract(e.Dragged)
-		d.startDragOff = &start
-	} else {
-		d.currentDragPos = d.currentDragPos.Add(e.Dragged)
-	}
-
-	x, y := d.currentDragPos.Components()
-	var offset, leadingRatio, trailingRatio float64
+func (d *divider) Dragged(event *fyne.DragEvent) {
+	offset := d.split.Offset
 	if d.split.Horizontal {
-		widthFree := float64(d.split.Size().Width - dividerThickness())
-		leadingRatio = float64(d.split.Leading.MinSize().Width) / widthFree
-		trailingRatio = 1. - (float64(d.split.Trailing.MinSize().Width) / widthFree)
-		offset = float64(x-d.startDragOff.X) / widthFree
+		if leadingRatio := float64(d.split.Leading.Size().Width) / float64(d.split.Size().Width); offset < leadingRatio {
+			offset = leadingRatio
+		}
+		if trailingRatio := 1. - (float64(d.split.Trailing.Size().Width) / float64(d.split.Size().Width)); offset > trailingRatio {
+			offset = trailingRatio
+		}
+		offset += float64(event.Dragged.DX) / float64(d.split.Size().Width)
 	} else {
-		heightFree := float64(d.split.Size().Height - dividerThickness())
-		leadingRatio = float64(d.split.Leading.MinSize().Height) / heightFree
-		trailingRatio = 1. - (float64(d.split.Trailing.MinSize().Height) / heightFree)
-		offset = float64(y-d.startDragOff.Y) / heightFree
-	}
-
-	if offset < leadingRatio {
-		offset = leadingRatio
-	}
-	if offset > trailingRatio {
-		offset = trailingRatio
+		if leadingRatio := float64(d.split.Leading.Size().Height) / float64(d.split.Size().Height); offset < leadingRatio {
+			offset = leadingRatio
+		}
+		if trailingRatio := 1. - (float64(d.split.Trailing.Size().Height) / float64(d.split.Size().Height)); offset > trailingRatio {
+			offset = trailingRatio
+		}
+		offset += float64(event.Dragged.DY) / float64(d.split.Size().Height)
 	}
 	d.split.SetOffset(offset)
 }

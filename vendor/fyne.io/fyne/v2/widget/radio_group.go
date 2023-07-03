@@ -28,8 +28,9 @@ var _ fyne.Widget = (*RadioGroup)(nil)
 // Since: 1.4
 func NewRadioGroup(options []string, changed func(string)) *RadioGroup {
 	r := &RadioGroup{
-		Options:   options,
-		OnChanged: changed,
+		DisableableWidget: DisableableWidget{},
+		Options:           options,
+		OnChanged:         changed,
 	}
 	r.ExtendBaseWidget(r)
 	r.update()

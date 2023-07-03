@@ -1,5 +1,5 @@
-# fyne.io/fyne/v2 v2.3.4-rc1.0.20230522195359-17a270c077ef
-## explicit; go 1.17
+# fyne.io/fyne/v2 v2.3.4
+## explicit; go 1.14
 fyne.io/fyne/v2
 fyne.io/fyne/v2/app
 fyne.io/fyne/v2/canvas
@@ -31,7 +31,6 @@ fyne.io/fyne/v2/internal/painter
 fyne.io/fyne/v2/internal/painter/gl
 fyne.io/fyne/v2/internal/painter/software
 fyne.io/fyne/v2/internal/repository
-fyne.io/fyne/v2/internal/scale
 fyne.io/fyne/v2/internal/svg
 fyne.io/fyne/v2/internal/test
 fyne.io/fyne/v2/internal/widget
@@ -85,9 +84,6 @@ github.com/go-gl/glfw/v3.3/glfw/glfw/deps/mingw
 github.com/go-gl/glfw/v3.3/glfw/glfw/deps/vs2008
 github.com/go-gl/glfw/v3.3/glfw/glfw/include/GLFW
 github.com/go-gl/glfw/v3.3/glfw/glfw/src
-# github.com/go-text/render v0.0.0-20230327192424-adef04305ec0
-## explicit; go 1.17
-github.com/go-text/render
 # github.com/go-text/typesetting v0.0.0-20230405155246-bf9c697c6e16
 ## explicit; go 1.17
 github.com/go-text/typesetting/di
@@ -108,6 +104,11 @@ github.com/go-text/typesetting/unicodedata
 github.com/godbus/dbus/v5
 github.com/godbus/dbus/v5/introspect
 github.com/godbus/dbus/v5/prop
+# github.com/goki/freetype v0.0.0-20220119013949-7a161fd3728c
+## explicit
+github.com/goki/freetype
+github.com/goki/freetype/raster
+github.com/goki/freetype/truetype
 # github.com/gopherjs/gopherjs v1.17.2
 ## explicit; go 1.17
 github.com/gopherjs/gopherjs/js
@@ -149,6 +150,7 @@ github.com/yuin/goldmark/util
 golang.org/x/image/ccitt
 golang.org/x/image/colornames
 golang.org/x/image/draw
+golang.org/x/image/font
 golang.org/x/image/math/f64
 golang.org/x/image/math/fixed
 golang.org/x/image/tiff

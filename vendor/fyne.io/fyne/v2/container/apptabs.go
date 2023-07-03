@@ -435,7 +435,7 @@ func (r *appTabsRenderer) updateTabs(max int) {
 	// Set overflow action
 	if tabCount <= max {
 		r.action.Hide()
-		r.bar.Layout = layout.NewStackLayout()
+		r.bar.Layout = layout.NewMaxLayout()
 	} else {
 		tabCount = max
 		r.action.Show()

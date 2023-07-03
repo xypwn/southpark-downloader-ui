@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build (linux && !android) || freebsd
-// +build linux,!android freebsd
+//go:build linux && !android
+// +build linux,!android
 
 package app
 
@@ -15,7 +15,6 @@ than screens with touch panels.
 
 /*
 #cgo LDFLAGS: -lEGL -lGLESv2 -lX11
-#cgo freebsd CFLAGS: -I/usr/local/include/
 
 void createWindow(void);
 void processEvents(void);

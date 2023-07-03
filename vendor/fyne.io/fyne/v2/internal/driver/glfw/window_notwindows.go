@@ -5,12 +5,12 @@ package glfw
 
 import (
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/internal/scale"
+	"fyne.io/fyne/v2/internal"
 )
 
 func (w *window) setDarkMode() {
 }
 
 func (w *window) computeCanvasSize(width, height int) fyne.Size {
-	return fyne.NewSize(scale.ToFyneCoordinate(w.canvas, width), scale.ToFyneCoordinate(w.canvas, height))
+	return fyne.NewSize(internal.UnscaleInt(w.canvas, width), internal.UnscaleInt(w.canvas, height))
 }

@@ -108,5 +108,5 @@ func (r *validationStatusRenderer) Refresh() {
 		r.icon.Hide()
 	}
 
-	r.icon.Refresh()
+	canvas.Refresh(r.icon)
 }

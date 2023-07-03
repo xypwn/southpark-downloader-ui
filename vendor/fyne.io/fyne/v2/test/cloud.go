@@ -18,7 +18,7 @@ func (c *mockCloud) ProviderDescription() string {
 }
 
 func (c *mockCloud) ProviderIcon() fyne.Resource {
-	return theme.ComputerIcon()
+	return theme.FyneLogo()
 }
 
 func (c *mockCloud) ProviderName() string {

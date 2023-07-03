@@ -3,6 +3,7 @@ package dialog
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -48,6 +49,7 @@ func NewForm(title, confirm, dismiss string, items []*widget.FormItem, callback 
 	form := widget.NewForm(items...)
 
 	d := &dialog{content: form, callback: callback, title: title, parent: parent}
+	d.layout = &dialogLayout{d: d}
 	d.dismiss = &widget.Button{Text: dismiss, Icon: theme.CancelIcon(),
 		OnTapped: d.Hide,
 	}
@@ -65,7 +67,7 @@ func NewForm(title, confirm, dismiss string, items []*widget.FormItem, callback 
 
 	form.SetOnValidationChanged(formDialog.validateItems)
 
-	d.create(container.NewGridWithColumns(2, d.dismiss, confirmBtn))
+	d.create(container.NewHBox(layout.NewSpacer(), d.dismiss, confirmBtn, layout.NewSpacer()))
 	return formDialog
 }
 

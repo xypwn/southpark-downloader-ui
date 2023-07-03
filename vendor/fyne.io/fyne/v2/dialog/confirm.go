@@ -2,7 +2,6 @@ package dialog
 
 import (
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -20,13 +19,6 @@ func (d *ConfirmDialog) SetConfirmText(label string) {
 	d.win.Refresh()
 }
 
-// SetConfirmImportance sets the importance level of the confirm button.
-//
-// Since 2.4
-func (d *ConfirmDialog) SetConfirmImportance(importance widget.ButtonImportance) {
-	d.confirm.Importance = importance
-}
-
 // NewConfirm creates a dialog over the specified window for user confirmation.
 // The title is used for the dialog window and message is the content.
 // The callback is executed when the user decides. After creation you should call Show().
@@ -41,9 +33,9 @@ func NewConfirm(title, message string, callback func(bool), parent fyne.Window) 
 			d.hideWithResponse(true)
 		},
 	}
-	d.create(container.NewGridWithColumns(2, d.dismiss, confirm))
+	d.create(newButtonList(d.dismiss, confirm))
 
-	return &ConfirmDialog{dialog: d, confirm: confirm}
+	return &ConfirmDialog{d, confirm}
 }
 
 // ShowConfirm shows a dialog over the specified window for a user

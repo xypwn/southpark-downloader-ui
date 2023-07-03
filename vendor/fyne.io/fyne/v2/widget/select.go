@@ -251,10 +251,7 @@ func (s *Select) tapAnimation() {
 		return
 	}
 	s.tapAnim.Stop()
-
-	if fyne.CurrentApp().Settings().ShowAnimations() {
-		s.tapAnim.Start()
-	}
+	s.tapAnim.Start()
 }
 
 func (s *Select) updateSelected(text string) {
@@ -332,7 +329,7 @@ func (s *selectRenderer) Refresh() {
 }
 
 func (s *selectRenderer) bgLineColor() (bg color.Color, line color.Color) {
-	if s.combo.disabled {
+	if s.combo.Disabled() {
 		return theme.InputBackgroundColor(), theme.DisabledColor()
 	}
 	if s.combo.focused {
@@ -345,7 +342,7 @@ func (s *selectRenderer) bgLineColor() (bg color.Color, line color.Color) {
 }
 
 func (s *selectRenderer) updateIcon() {
-	if s.combo.disabled {
+	if s.combo.Disabled() {
 		s.icon.Resource = theme.NewDisabledResource(theme.MenuDropDownIcon())
 	} else {
 		s.icon.Resource = theme.MenuDropDownIcon()

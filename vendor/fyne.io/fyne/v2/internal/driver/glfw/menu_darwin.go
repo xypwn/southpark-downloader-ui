@@ -172,7 +172,7 @@ func insertNativeMenuItem(nsMenu unsafe.Pointer, item *fyne.MenuItem, nextItemID
 	var imgData unsafe.Pointer
 	var imgDataLength uint
 	if item.Icon != nil {
-		if svg.IsResourceSVG(item.Icon) {
+		if painter.IsResourceSVG(item.Icon) {
 			rsc := item.Icon
 			if _, isThemed := rsc.(*theme.ThemedResource); isThemed {
 				var r, g, b, a C.int

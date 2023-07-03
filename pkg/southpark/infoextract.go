@@ -27,6 +27,25 @@ func getSPBaseURL(fullURL string) (string, error) {
 	return url.String(), nil
 }
 
+// Returned season and episode numbers are 1-indexed
+func getSeasonAndEpisodeNumberFromURL(episodeURL string) (int, int, error) {
+	sp := strings.Split(episodeURL, "-")
+	if len(sp) < 3 {
+		return 0, 0, fmt.Errorf("invalid URL: unable to find season and episode number: %v", episodeURL)
+	}
+
+	season, err := strconv.Atoi(sp[len(sp)-3])
+	if err != nil {
+		return 0, 0, fmt.Errorf("parsing season number: %w", err)
+	}
+	episode, err := strconv.Atoi(sp[len(sp)-1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("parsing episode number: %w", err)
+	}
+
+	return season, episode, nil
+}
+
 type Language int
 
 const (
@@ -35,10 +54,10 @@ const (
 )
 
 func LanguageFromString(s string) (lang Language, ok bool) {
-	switch s {
-	case LanguageEnglish.String():
+	switch strings.ToUpper(s) {
+	case "EN", "ENGLISH":
 		return LanguageEnglish, true
-	case LanguageGerman.String():
+	case "DE", "GERMAN", "DEUTSCH":
 		return LanguageGerman, true
 	default:
 		return 0, false
@@ -56,8 +75,57 @@ func (l Language) String() string {
 	}
 }
 
+type Host int
+
+const (
+	HostSPDE    Host = iota // southpark.de
+	HostSPSCOM              // southparkstudios.com
+	HostSPSNU               // southparkstudios.nu
+	HostSPSDK               // southparkstudios.dk
+	HostSPCCCOM             // southpark.cc.com
+	HostSPNL                // southpark.nl
+)
+
+func HostFromString(hostStr string) (host Host, ok bool) {
+	switch strings.TrimPrefix(hostStr, "www.") {
+	case "southpark.de":
+		return HostSPDE, true
+	case "southparkstudios.com":
+		return HostSPSCOM, true
+	case "southparkstudios.nu":
+		return HostSPSNU, true
+	case "southparkstudios.dk":
+		return HostSPSDK, true
+	case "southpark.cc.com":
+		return HostSPCCCOM, true
+	case "southpark.nl":
+		return HostSPNL, true
+	default:
+		return 0, false
+	}
+}
+
+func (h Host) String() string {
+	switch h {
+	case HostSPDE:
+		return "www.southpark.de"
+	case HostSPSCOM:
+		return "www.southparkstudios.com"
+	case HostSPSNU:
+		return "www.southparkstudios.nu"
+	case HostSPSDK:
+		return "www.southparkstudios.dk"
+	case HostSPCCCOM:
+		return "www.southpark.cc.com"
+	case HostSPNL:
+		return "www.southpark.nl"
+	default:
+		panic("Host.String called on invalid host")
+	}
+}
+
 type RegionInfo struct {
-	Host               string
+	Host               Host
 	AvailableLanguages []Language
 	RequiresExplicitEN bool
 }
@@ -80,19 +148,19 @@ func GetRegionInfo(ctx context.Context) (RegionInfo, error) {
 	}
 	resp.Body.Close()
 
-	res := RegionInfo{
-		Host:               redirHost,
-		AvailableLanguages: []Language{LanguageEnglish},
-	}
-	redirHost = strings.TrimPrefix(redirHost, "www.")
-	switch redirHost {
-	case "southpark.de":
-		res.AvailableLanguages = append(res.AvailableLanguages, LanguageGerman)
-		res.RequiresExplicitEN = true
-		return res, nil
-	case "southparkstudios.com", "southparkstudios.nu", "southparkstudios.dk", "southpark.cc.com", "southpark.nl":
-		return res, nil
-	default:
+	if host, ok := HostFromString(redirHost); ok {
+		res := RegionInfo{
+			Host:               host,
+			AvailableLanguages: []Language{LanguageEnglish},
+		}
+		if host == HostSPDE {
+			res.AvailableLanguages = append(res.AvailableLanguages, LanguageGerman)
+			res.RequiresExplicitEN = true
+			return res, nil
+		} else {
+			return res, nil
+		}
+	} else {
 		return RegionInfo{}, fmt.Errorf("unsupported website region: %v", redirHost)
 	}
 }
@@ -147,6 +215,28 @@ type websiteDataProps struct {
 			SeasonMGID  string `json:"seasonMgid"`
 		} `json:"meta"`
 	} `json:"items"`
+	Media struct {
+		Image struct {
+			URL string `json:"url"`
+		} `json:"image"`
+		LockedLabel string `json:"lockedLabel"`
+		Video       struct {
+			Config struct {
+				URI   string `json:"uri"`
+				Title string `json:"title"`
+			} `json:"config"`
+		} `json:"video"`
+		UnavailableSlate struct {
+			Title       string `json:"title"`
+			Description string `json:"description"`
+		} `json:"unavailableSlate"`
+	} `json:"media"`
+	SocialShare struct {
+		ShortURL string `json:"shortUrl"`
+	} `json:"socialShare"`
+	Meta struct {
+		Description string `json:"description"`
+	} `json:"meta"`
 }
 
 type websiteData struct {
@@ -222,7 +312,10 @@ func GetSeasons(ctx context.Context, regionInfo RegionInfo, language Language) (
 	if language == LanguageEnglish && regionInfo.RequiresExplicitEN {
 		langPath = "/en"
 	}
-	anySeasonURL := fmt.Sprintf("https://%v%v/seasons/south-park", regionInfo.Host, langPath)
+	// Using season one instead of /seasons/south-park, because in some
+	// regions (e.g. sweden), the last season isn't available, meaning we
+	// can't get the series MGID via that season, which messes everything up
+	anySeasonURL := fmt.Sprintf("https://%v%v/seasons/south-park/yjy8n9/season-1", regionInfo.Host, langPath)
 
 	baseURL, err := getSPBaseURL(anySeasonURL)
 	if err != nil {
@@ -278,22 +371,32 @@ func GetSeasons(ctx context.Context, regionInfo RegionInfo, language Language) (
 	return res, seriesMGID, nil
 }
 
-type RawThumbnailURL string
+type EpisodeMetadata struct {
+	SeasonNumber    int // From 1
+	EpisodeNumber   int // From 1
+	Language        Language
+	Unavailable     bool
+	RawThumbnailURL string
+	Title           string
+	Description     string
+	URL             string
+}
 
-func (r RawThumbnailURL) GetThumbnailURL(width uint, height uint, crop bool) string {
-	return fmt.Sprintf("%v&width=%v&height=%v&crop=%v", r, width, height, crop)
+func (em EpisodeMetadata) GetThumbnailURL(width uint, height uint, crop bool) string {
+	return fmt.Sprintf("%v&width=%v&height=%v&crop=%v", em.RawThumbnailURL, width, height, crop)
+}
+
+// Compares season, episode and language.
+// NOT an exact equality check.
+func (em EpisodeMetadata) Is(other EpisodeMetadata) bool {
+	return em.SeasonNumber == other.SeasonNumber &&
+		em.EpisodeNumber == other.EpisodeNumber &&
+		em.Language == other.Language
 }
 
 type Episode struct {
-	SeasonNumber    int // From 1
-	EpisodeNumber   int // From 1
-	Unavailable     bool
-	RawThumbnailURL RawThumbnailURL
-	Title           string
-	Description     string
-	MGID            string
-	URL             string
-	Language        Language
+	EpisodeMetadata
+	MGID string
 }
 
 func GetEpisodes(ctx context.Context, season Season) (episodes []Episode, seasonMGID string, err error) {
@@ -339,26 +442,25 @@ func GetEpisodes(ctx context.Context, season Season) (episodes []Episode, season
 		seasonMGID = props.Items[0].Meta.SeasonMGID
 
 		for _, v := range props.Items {
-			// Probably not the best way, but the URL always ends with "-seasonNum-XX-ep-YY",
-			// so we just get the split separated by "-" as the episode number
-			sp := strings.Split(v.URL, "-")
-			if len(sp) < 1 {
-				return nil, "", errors.New("invalid episode URL: unable to find episode number")
-			}
-			episodeNum, err := strconv.ParseInt(sp[len(sp)-1], 10, 32)
+			seasonNum, episodeNum, err := getSeasonAndEpisodeNumberFromURL(v.URL)
 			if err != nil {
-				return nil, "", fmt.Errorf("invalid episode URL: unable to parse episode number: %w", err)
+				return nil, "", fmt.Errorf("extract season and episode number from URL: %w", err)
+			}
+			if seasonNum != season.SeasonNumber {
+				return nil, "", fmt.Errorf("mismatch between season number in url (%v) and in season parameter (%v)", seasonNum, season.SeasonNumber)
 			}
 			res = append(res, Episode{
-				SeasonNumber:    season.SeasonNumber,
-				EpisodeNumber:   int(episodeNum),
-				Unavailable:     v.Media.LockedLabel != "",
-				RawThumbnailURL: RawThumbnailURL(v.Media.Image.URL),
-				Title:           v.Meta.SubHeader,
-				Description:     v.Meta.Description,
-				MGID:            v.Meta.ItemMGID,
-				URL:             baseURL + v.URL,
-				Language:        season.Language,
+				EpisodeMetadata: EpisodeMetadata{
+					SeasonNumber:    seasonNum,
+					EpisodeNumber:   episodeNum,
+					Language:        season.Language,
+					Unavailable:     v.Media.LockedLabel != "",
+					RawThumbnailURL: v.Media.Image.URL,
+					Title:           v.Meta.SubHeader,
+					Description:     v.Meta.Description,
+					URL:             baseURL + v.URL,
+				},
+				MGID: v.Meta.ItemMGID,
 			})
 		}
 	}
@@ -369,6 +471,39 @@ func GetEpisodes(ctx context.Context, season Season) (episodes []Episode, season
 	})
 
 	return res, seasonMGID, nil
+}
+
+func GetEpisode(ctx context.Context, regionInfo RegionInfo, url string) (Episode, error) {
+	props, err := getWebsiteDataPropsFromURL(ctx, url, "VideoPlayer", "")
+	if err != nil {
+		return Episode{}, fmt.Errorf("get website data props: %w", err)
+	}
+
+	shareURL := props.SocialShare.ShortURL
+
+	language, err := regionInfo.GetURLLanguage(shareURL)
+	if err != nil {
+		return Episode{}, fmt.Errorf("get episode language: %w", err)
+	}
+
+	seasonNum, episodeNum, err := getSeasonAndEpisodeNumberFromURL(shareURL)
+	if err != nil {
+		return Episode{}, fmt.Errorf("extract season and episode number from URL: %w", err)
+	}
+
+	return Episode{
+		EpisodeMetadata: EpisodeMetadata{
+			SeasonNumber:    seasonNum,
+			EpisodeNumber:   episodeNum,
+			Language:        language,
+			Unavailable:     props.Media.UnavailableSlate.Title != "",
+			RawThumbnailURL: props.Media.Image.URL,
+			Title:           props.Media.Video.Config.Title,
+			Description:     props.Meta.Description,
+			URL:             shareURL,
+		},
+		MGID: props.Media.Video.Config.URI,
+	}, nil
 }
 
 type searchData struct {
@@ -389,15 +524,6 @@ type searchData struct {
 	} `json:"response"`
 }
 
-type SearchResult struct {
-	Language        Language
-	Unavailable     bool
-	RawThumbnailURL RawThumbnailURL
-	Title           string
-	Description     string
-	URL             string
-}
-
 func Search(
 	ctx context.Context,
 	regionInfo RegionInfo,
@@ -405,7 +531,7 @@ func Search(
 	query string,
 	pageNumber int, // From 0
 	resultsPerPage int,
-) ([]SearchResult, error) {
+) ([]EpisodeMetadata, error) {
 	showID, ok := cutPrefix(seriesMGID, "mgid:arc:series:southpark.intl:")
 	if !ok {
 		return nil, fmt.Errorf("invalid series MGID: %v", seriesMGID)
@@ -431,16 +557,28 @@ func Search(
 		return nil, fmt.Errorf("parse search API response: %w", err)
 	}
 
-	var res []SearchResult
+	var res []EpisodeMetadata
 	for _, v := range data.Response.Items {
+		// HACK: The "1%" (S15E12) episode's URL isn't escaped correctly. This
+		// leads to a 400 error when using the official website, but correctly
+		// URL escaping it seems to fix the issue.
+		v.URL = strings.ReplaceAll(v.URL, "south-park-1%", "south-park-1%37")
+
+		seasonNum, episodeNum, err := getSeasonAndEpisodeNumberFromURL(v.URL)
+		if err != nil {
+			return nil, fmt.Errorf("extract season and episode number from URL: %w", err)
+		}
+
 		urlLang, err := regionInfo.GetURLLanguage(v.URL)
 		if err != nil {
 			return nil, fmt.Errorf("get search result language: %w", err)
 		}
-		res = append(res, SearchResult{
+		res = append(res, EpisodeMetadata{
+			SeasonNumber:    seasonNum,
+			EpisodeNumber:   episodeNum,
 			Language:        urlLang,
 			Unavailable:     v.Media.LockedLabel != "",
-			RawThumbnailURL: RawThumbnailURL("https:" + v.Media.Image.URL),
+			RawThumbnailURL: "https:" + v.Media.Image.URL,
 			Title:           v.Meta.SubHeader,
 			Description:     v.Meta.Description,
 			URL:             v.URL,

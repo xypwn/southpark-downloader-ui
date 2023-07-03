@@ -3,7 +3,7 @@ module github.com/xypwn/southpark-downloader-ui
 go 1.18
 
 require (
-	fyne.io/fyne/v2 v2.3.4-rc1.0.20230522195359-17a270c077ef
+	fyne.io/fyne/v2 v2.3.4
 	github.com/adrg/xdg v0.4.0
 	github.com/yapingcat/gomedia v0.0.0-20230509123117-a10a39c01cdf
 )
@@ -18,9 +18,9 @@ require (
 	github.com/fyne-io/image v0.0.0-20220602074514-4956b0afb3d2 // indirect
 	github.com/go-gl/gl v0.0.0-20211210172815-726fda9656d6 // indirect
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20221017161538-93cebf72946b // indirect
-	github.com/go-text/render v0.0.0-20230327192424-adef04305ec0 // indirect
 	github.com/go-text/typesetting v0.0.0-20230405155246-bf9c697c6e16 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
+	github.com/goki/freetype v0.0.0-20220119013949-7a161fd3728c // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

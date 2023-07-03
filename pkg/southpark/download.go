@@ -6,19 +6,12 @@ import (
 	"io"
 	"os"
 	"path"
+
+	"github.com/xypwn/southpark-downloader-ui/pkg/ioutils"
 )
 
-func GetDownloadOutputFileName(episode Episode) string {
-	return fmt.Sprintf(
-		"South_Park_%v_S%02v_E%02v_%v",
-		episode.Language.String(),
-		episode.SeasonNumber,
-		episode.EpisodeNumber,
-		toValidFilename(episode.Title),
-	)
-}
-
 type DownloaderStatus int
+
 const (
 	DownloaderStatusFetchingMetadata DownloaderStatus = iota
 	DownloaderStatusDownloadingVideo
@@ -51,13 +44,13 @@ func NewDownloader(
 	outputSubtitlePath string, // Empty to download video only
 ) *Downloader {
 	return &Downloader{
-		OnStatusChanged: func(DownloaderStatus, float64) {},
-		selectFormat:             selectVideoFormat,
-		ctx:                      ctx,
-		tmpDirPath:               tmpDirPath,
-		outputVideoPath:          outputVideoPath,
-		outputSubtitlePath:       outputSubtitlePath,
-		episode:                  episode,
+		OnStatusChanged:    func(DownloaderStatus, float64) {},
+		selectFormat:       selectVideoFormat,
+		ctx:                ctx,
+		tmpDirPath:         tmpDirPath,
+		outputVideoPath:    outputVideoPath,
+		outputSubtitlePath: outputSubtitlePath,
+		episode:            episode,
 	}
 }
 
@@ -86,7 +79,8 @@ func (d *Downloader) Do() error {
 				i++
 			}
 			if i > 0 {
-				// Start at the last existing segment
+				// Start at the segment before the last existing one, since
+				// writing to the last one may have been partial
 				startSegment = i - 1
 			}
 		} else {
@@ -116,7 +110,8 @@ func (d *Downloader) Do() error {
 		}
 		defer outputFileMP4.Close()
 
-		tsReader, tsWriter := io.Pipe()
+		baseTsReader, tsWriter := io.Pipe()
+		tsReader := ioutils.NewCtxReader(d.ctx, baseTsReader)
 
 		var convertErr error
 		go func() {
@@ -136,7 +131,7 @@ func (d *Downloader) Do() error {
 			return fmt.Errorf("convert MPEG-TS to mp4: %w", err)
 		}
 		if convertErr != nil {
-			return fmt.Errorf("convert MPEG-TS to mp4: %w", err)
+			return fmt.Errorf("convert MPEG-TS to mp4: %w", convertErr)
 		}
 		if err := os.RemoveAll(d.tmpDirPath); err != nil {
 			return fmt.Errorf("remove temporary media directory: %w", err)

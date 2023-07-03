@@ -41,14 +41,21 @@ To run the program, you have to right-click it, then press open (NOT double-clic
 
 ## Roadmap
 - [X] Write a custom data binding type using generics (fyne is too restrictive)
-  - [ ] Use it instead of fyne's bindings
+  - [X] Use it instead of fyne's bindings
 - [X] Write tests
   - [X] `pkg/data`
-  - [X] `pkg/prioritysemaphore`
-- [ ] Extract GUI components into internal package & despaghettify
-- [ ] Extract downloader and cache logic into internal package & despaghettify
-  - Make downloads persistent after closing the app
-- [X] Add 'Download All' button to add all episodes of the season to the queue
-- [ ] Allow directly downloading search results & fix search in general
+  - [X] `pkg/taskqueue`
+- [X] Extract GUI components into internal package & despaghettify
+  - [X] Individual episodes
+  - [X] Downloads
+  - [X] Season selection
+  - [X] Preferences
+- [X] Extract downloader and cache logic into internal package & despaghettify
+  - [X] Make downloads persistent after closing the app
+- [X] Allow directly downloading search results & fix search in general
+- [ ] Add 'Download All' button to add all episodes of the season to the queue
 - [ ] Make Android usable and useful
   - Figure out a way to save files without direct access to SAF
+- [ ] Nitpicks
+  - [ ] Fix EllipsisLabel text overflow with very large texts
+  - [ ] Add word breaking for EllipsisLabel

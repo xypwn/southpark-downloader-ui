@@ -29,6 +29,4 @@ type Settings interface {
 
 	AddChangeListener(chan Settings)
 	BuildType() BuildType
-
-	ShowAnimations() bool
 }

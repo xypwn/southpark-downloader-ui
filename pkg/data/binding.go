@@ -4,68 +4,104 @@ import (
 	"sync"
 )
 
-type listener[T any] struct {
-	Fn func(T)
-	ID uint
+// A Client can use the Get and Change methods,
+// and set up a listener using SetListenerFn. When
+// the value is changed by a client, all other
+// Clients EXCEPT the one which made the change
+// are notified via their ListenerFn.
+type Client[T any] struct {
+	mtx         sync.RWMutex
+	parent      *Binding[T]
+	listenerFns []func(T)
 }
 
+// Gets called whenever a DIFFERENT CLIENT calls
+// the Change method.
+func (c *Client[T]) AddListener(fn func(T)) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	c.listenerFns = append(c.listenerFns, fn)
+}
+
+// Allows you to look at the array and extract some data.
+// Do NOT exfiltrate any references to data.
+// Do NOT modify the data.
+// These restrictions apply to ensure thread safety.
+func (c *Client[T]) Examine(examiner func(T)) {
+	c.parent.mtx.RLock()
+	defer c.parent.mtx.RUnlock()
+	examiner(c.parent.data)
+}
+
+// Changes the value and notifies all OTHER Clients
+// by calling their ListenerFn function
+func (c *Client[T]) Change(changer func(T) T) {
+	c.parent.mtx.Lock()
+	defer c.parent.mtx.Unlock()
+	c.parent.data = changer(c.parent.data)
+	c.parent.notifyClients(c)
+}
+
+// A binding represents a piece of data which
+// needs to be synced between different pieces
+// of code (Clients). Clients may run on separate
+// threads safely.
+// See Client.
 type Binding[T any] struct {
-	mtx            sync.Mutex
-	data           T
-	listeners      []listener[T]
-	nextListenerID uint
+	mtx     sync.RWMutex
+	data    T
+	clients []*Client[T]
 }
 
 func NewBinding[T any]() *Binding[T] {
-	return &Binding[T]{}
+	res := &Binding[T]{}
+	res.NewClient() // default client
+	return res
 }
 
-func (b *Binding[T]) Get() T {
+// Creates a new client used to access and manipulate the data.
+// See Client.
+func (b *Binding[T]) NewClient() *Client[T] {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
-	return b.data
+
+	c := &Client[T]{
+		parent: b,
+	}
+	b.clients = append(b.clients, c)
+	return c
 }
 
-func (b *Binding[T]) Set(value T) {
+// Removes the given client, if it existed in the binding.
+// Returns whether removal was successful.
+func (b *Binding[T]) RemoveClient(client *Client[T]) bool {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
-	b.data = value
-	b.notifyListeners()
-}
 
-func (b *Binding[T]) Change(changer func(T) T) {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-	b.data = changer(b.data)
-	b.notifyListeners()
-}
-
-func (b *Binding[T]) AddListener(fn func(T)) (id uint) {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-	id = b.nextListenerID
-	b.nextListenerID++
-	b.listeners = append(b.listeners, listener[T]{
-		Fn: fn,
-		ID: id,
-	})
-	fn(b.data)
-	return
-}
-
-func (b *Binding[T]) RemoveListener(id uint) {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-	for i, v := range b.listeners {
-		if v.ID == id {
-			b.listeners = append(b.listeners[:i], b.listeners[i+1:]...)
-			break
+	for i, v := range b.clients {
+		if v == client {
+			b.clients = append(b.clients[:i], b.clients[i+1:]...)
+			return true
 		}
 	}
+	return false
 }
 
-func (b *Binding[T]) notifyListeners() {
-	for _, v := range b.listeners {
-		v.Fn(b.data)
+// NOT inherently thread-safe! Expects the CALLER to LOCK b.mtx!
+// See Change.
+// exclude may be nil.
+func (b *Binding[T]) notifyClients(exclude *Client[T]) {
+	for _, v := range b.clients {
+		if v == exclude {
+			continue
+		}
+
+		v.mtx.RLock()
+		for _, fn := range v.listenerFns {
+			if fn != nil {
+				fn(b.data)
+			}
+		}
+		v.mtx.RUnlock()
 	}
 }

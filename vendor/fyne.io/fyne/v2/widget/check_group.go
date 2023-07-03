@@ -30,8 +30,9 @@ var _ fyne.Widget = (*CheckGroup)(nil)
 // Since: 2.1
 func NewCheckGroup(options []string, changed func([]string)) *CheckGroup {
 	r := &CheckGroup{
-		Options:   options,
-		OnChanged: changed,
+		DisableableWidget: DisableableWidget{},
+		Options:           options,
+		OnChanged:         changed,
 	}
 	r.ExtendBaseWidget(r)
 	r.update()
