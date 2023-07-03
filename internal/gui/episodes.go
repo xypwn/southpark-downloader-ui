@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/xypwn/southpark-downloader-ui/internal/logic"
 	"github.com/xypwn/southpark-downloader-ui/pkg/data"
@@ -146,7 +147,7 @@ func NewEpisodesPanel(
 			episodes := container.NewMax()
 
 			seasonLists := make(map[sp.Language]*widget.List)
-
+			var selectedSeason atomic.Int32
 			for k, v := range seasons {
 				seasons := v
 				seasonList := widget.NewList(
@@ -161,6 +162,7 @@ func NewEpisodesPanel(
 					},
 				)
 				seasonList.OnSelected = func(id widget.ListItemID) {
+					selectedSeason.Store(int32(id))
 					cleanupEpisodesFn()
 					season := seasons[len(seasons)-1-id]
 					episodes.RemoveAll()
@@ -190,6 +192,7 @@ func NewEpisodesPanel(
 			querySetterCl := query.NewClient()
 			queryListenerCl := query.NewClient()
 
+			var selectedLanguage atomic.Int32
 			languageSel := widget.NewSelect(
 				languageOpts,
 				func(s string) {
@@ -203,8 +206,9 @@ func NewEpisodesPanel(
 					seasonsCnt.RemoveAll()
 					seasonsCnt.Add(seasonLists[newLang])
 					seasonLists[newLang].UnselectAll()
-					seasonLists[newLang].Select(0)
+					seasonLists[newLang].Select(int(selectedSeason.Load()))
 					querySetterCl.Change(func(sq searchQuery) searchQuery {
+						selectedLanguage.Store(int32(newLang))
 						sq.Language = newLang
 						return sq
 					})
@@ -247,11 +251,11 @@ func NewEpisodesPanel(
 				}
 				cleanupSearchResultsFns = nil
 				mainCnt.RemoveAll()
+				selLanguage := sp.Language(selectedLanguage.Load())
 				if sq.Text != "" {
 					clearSearchButton.Enable()
 					mainCnt.Add(NewLoadable(ctx,
 						func(ctx context.Context) (fyne.CanvasObject, error) {
-							selLanguage, _ := sp.LanguageFromString(languageOpts[languageSel.SelectedIndex()])
 							text := "Results for \"" + sq.Text + "\" in " + selLanguage.String() + ":"
 							results, err := sp.Search(ctx, region, mgid, sq.Text, 0, 35)
 							if err != nil {
@@ -260,16 +264,17 @@ func NewEpisodesPanel(
 							resultFound := false
 							vbox := container.NewVBox()
 							for _, v := range results {
-								if v.Language == selLanguage {
+								result := v
+								if result.Language == selLanguage {
 									ep, destroy := NewEpisode(
 										ctx,
 										onInfo,
 										onError,
 										dls,
 										cfgClient,
-										v,
+										result,
 										func() (sp.Episode, error) {
-											return sp.GetEpisode(ctx, region, v.URL)
+											return sp.GetEpisode(ctx, region, result.URL)
 										},
 										true,
 										true,
@@ -306,6 +311,8 @@ func NewEpisodesPanel(
 				} else {
 					clearSearchButton.Disable()
 					mainCnt.Add(split)
+					seasonLists[selLanguage].UnselectAll()
+					seasonLists[selLanguage].Select(int(selectedSeason.Load()))
 				}
 			})
 
