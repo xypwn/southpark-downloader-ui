@@ -126,14 +126,18 @@ type Downloads struct {
 	queue  *taskqueue.TaskQueue[*Download]
 }
 
-func NewDownloads(nConcurrent int, onError func(error)) *Downloads {
+func NewDownloads(cfgClient *data.Client[*Config], onError func(error)) *Downloads {
 	var res *Downloads
 	res = &Downloads{
 		ListBinding: data.NewListBinding[*Download](),
 	}
+	var nConcurrentInit int
+	cfgClient.Examine(func(c *Config) {
+		nConcurrentInit = c.ConcurrentDownloads
+	})
 	res.client = res.NewClient()
 	res.queue = taskqueue.New(
-		nConcurrent,
+		nConcurrentInit,
 		func(enqueued []*Download) int {
 			var toMatch *Download
 			res.client.Examine(func(arr []*Download) {
@@ -157,6 +161,9 @@ func NewDownloads(nConcurrent int, onError func(error)) *Downloads {
 			return 0
 		},
 	)
+	cfgClient.AddListener(func(c *Config) {
+		res.queue.SetSize(c.ConcurrentDownloads)
+	})
 	return res
 }
 

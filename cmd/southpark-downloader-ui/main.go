@@ -48,10 +48,6 @@ func main() {
 		), window)
 	}
 
-	dls := logic.NewDownloads(3, onError)
-
-	downloads := gui.NewDownloads(dls)
-
 	storage, err := logic.NewStorage(app.Storage().RootURI().Path())
 	if err != nil {
 		panic(err)
@@ -62,20 +58,22 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	cacheStor, err := logic.NewStorageItem(storage, "cache", logic.NewCache, func(err error) {
 		panic(err)
 	})
 	if err != nil {
 		panic(err)
 	}
-
 	dlInfoStor, err := logic.NewStorageItem(storage, "downloads", logic.NewDownloadsInfo, func(err error) {
 		panic(err)
 	})
 	if err != nil {
 		panic(err)
 	}
+
+	dls := logic.NewDownloads(cfgStor.NewClient(), onError)
+
+	downloads := gui.NewDownloads(dls)
 
 	logic.ConnectDownloadsToDownloadsInfo(ctx, dls, dlInfoStor, func(err error) {
 		panic(err)
