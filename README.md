@@ -59,3 +59,10 @@ To run the program, you have to right-click it, then press open (NOT double-clic
 - [ ] Nitpicks
   - [ ] Fix EllipsisLabel text overflow with very large texts
   - [ ] Add word breaking for EllipsisLabel
+
+## Disclaimer
+This application is unofficial and is neither endorsed, nor supported by South Park, Paramount, MTV, or Comedy Central. The application interfaces with official sources using their public APIs in a similar way to a web browser when streaming South Park episodes. Please ensure your usage of this application complies with the terms of service of these APIs.
+
+Downloaded files are intended purely for personal use. Redistribution of these files is considered copyright infringement and is against the law. Users are solely responsible for their use of this application and should not engage in illegal activities.
+
+The application is provided "as is", without warranty of any kind, express or implied, as outlined in the LICENSE. I disclaim all liability and responsibility arising from any reliance placed on the application by its users, or by anyone who may be informed of its contents.
