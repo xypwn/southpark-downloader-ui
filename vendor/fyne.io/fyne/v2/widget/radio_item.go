@@ -158,7 +158,7 @@ type radioItemRenderer struct {
 }
 
 func (r *radioItemRenderer) Layout(size fyne.Size) {
-	focusIndicatorSize := fyne.NewSize(theme.IconInlineSize()+theme.InnerPadding(), theme.IconInlineSize()+theme.InnerPadding())
+	focusIndicatorSize := fyne.NewSquareSize(theme.IconInlineSize() + theme.InnerPadding())
 	r.focusIndicator.Resize(focusIndicatorSize)
 	r.focusIndicator.Move(fyne.NewPos(theme.InputBorderSize(), (size.Height-focusIndicatorSize.Height)/2))
 
@@ -167,7 +167,7 @@ func (r *radioItemRenderer) Layout(size fyne.Size) {
 	r.label.Move(fyne.NewPos(focusIndicatorSize.Width+theme.Padding(), 0))
 
 	iconPos := fyne.NewPos(theme.InnerPadding()/2+theme.InputBorderSize(), (size.Height-theme.IconInlineSize())/2)
-	iconSize := fyne.NewSize(theme.IconInlineSize(), theme.IconInlineSize())
+	iconSize := fyne.NewSquareSize(theme.IconInlineSize())
 	r.icon.Resize(iconSize)
 	r.icon.Move(iconPos)
 	r.over.Resize(iconSize)
@@ -205,7 +205,11 @@ func (r *radioItemRenderer) update() {
 		out.ColorName = theme.ColorNameForeground
 	}
 	if r.item.Disabled() {
-		in.ColorName = theme.ColorNameBackground
+		if r.item.Selected {
+			in.ColorName = theme.ColorNameDisabled
+		} else {
+			in.ColorName = theme.ColorNameBackground
+		}
 		out.ColorName = theme.ColorNameDisabled
 	}
 	r.icon.Resource = in

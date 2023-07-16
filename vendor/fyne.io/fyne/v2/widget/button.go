@@ -110,9 +110,10 @@ func (b *Button) CreateRenderer() fyne.WidgetRenderer {
 	seg := &TextSegment{Text: b.Text, Style: RichTextStyleStrong}
 	seg.Style.Alignment = fyne.TextAlignCenter
 	text := NewRichText(seg)
-	text.inset = fyne.NewSize(theme.InnerPadding(), theme.InnerPadding())
+	text.inset = fyne.NewSquareSize(theme.InnerPadding())
 
 	b.background = canvas.NewRectangle(theme.ButtonColor())
+	b.background.CornerRadius = theme.InputRadiusSize()
 	tapBG := canvas.NewRectangle(color.Transparent)
 	b.tapAnim = newButtonTapAnimation(tapBG, b)
 	b.tapAnim.Curve = fyne.AnimationEaseOut
@@ -220,6 +221,7 @@ func (b *Button) applyButtonTheme() {
 	}
 
 	b.background.FillColor = b.buttonColor()
+	b.background.CornerRadius = theme.InputRadiusSize()
 	b.background.Refresh()
 }
 
@@ -231,7 +233,16 @@ func (b *Button) buttonColor() color.Color {
 		}
 		return theme.DisabledButtonColor()
 	case b.focused:
-		return blendColor(theme.ButtonColor(), theme.FocusColor())
+		bg := theme.ButtonColor()
+		if b.Importance == HighImportance {
+			bg = theme.PrimaryColor()
+		} else if b.Importance == DangerImportance {
+			bg = theme.ErrorColor()
+		} else if b.Importance == WarningImportance {
+			bg = theme.WarningColor()
+		}
+
+		return blendColor(bg, theme.FocusColor())
 	case b.hovered:
 		bg := theme.ButtonColor()
 		if b.Importance == HighImportance {
@@ -261,7 +272,10 @@ func (b *Button) tapAnimation() {
 		return
 	}
 	b.tapAnim.Stop()
-	b.tapAnim.Start()
+
+	if fyne.CurrentApp().Settings().ShowAnimations() {
+		b.tapAnim.Start()
+	}
 }
 
 type buttonRenderer struct {
@@ -285,7 +299,7 @@ func (r *buttonRenderer) Layout(size fyne.Size) {
 		// Nothing to layout
 		return
 	}
-	iconSize := fyne.NewSize(theme.IconInlineSize(), theme.IconInlineSize())
+	iconSize := fyne.NewSquareSize(theme.IconInlineSize())
 	labelSize := r.label.MinSize()
 	padding := r.padding()
 	if hasLabel {
@@ -322,7 +336,7 @@ func (r *buttonRenderer) Layout(size fyne.Size) {
 func (r *buttonRenderer) MinSize() (size fyne.Size) {
 	hasIcon := r.icon != nil
 	hasLabel := r.label.Segments[0].(*TextSegment).Text != ""
-	iconSize := fyne.NewSize(theme.IconInlineSize(), theme.IconInlineSize())
+	iconSize := fyne.NewSquareSize(theme.IconInlineSize())
 	labelSize := r.label.MinSize()
 	if hasLabel {
 		size.Width = labelSize.Width
@@ -356,7 +370,11 @@ func (r *buttonRenderer) applyTheme() {
 	case r.button.disabled:
 		r.label.Segments[0].(*TextSegment).Style.ColorName = theme.ColorNameDisabled
 	case r.button.Importance == HighImportance || r.button.Importance == DangerImportance || r.button.Importance == WarningImportance:
-		r.label.Segments[0].(*TextSegment).Style.ColorName = theme.ColorNameBackground
+		if r.button.focused {
+			r.label.Segments[0].(*TextSegment).Style.ColorName = theme.ColorNameForeground
+		} else {
+			r.label.Segments[0].(*TextSegment).Style.ColorName = theme.ColorNameBackground
+		}
 	}
 	r.label.Refresh()
 	if r.icon != nil && r.icon.Resource != nil {
@@ -376,7 +394,7 @@ func (r *buttonRenderer) applyTheme() {
 }
 
 func (r *buttonRenderer) padding() fyne.Size {
-	return fyne.NewSize(theme.InnerPadding()*2, theme.InnerPadding()*2)
+	return fyne.NewSquareSize(theme.InnerPadding() * 2)
 }
 
 func (r *buttonRenderer) updateIconAndText() {
