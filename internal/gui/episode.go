@@ -265,9 +265,11 @@ func NewEpisode(
 		res.button.OnTapped = func() {
 			var downloadPath string
 			var maxQuality logic.Quality
+			var outputFilePattern string
 			cfgClient.Examine(func(c *logic.Config) {
 				downloadPath = c.DownloadPath
 				maxQuality = c.MaximumQuality
+				outputFilePattern = c.OutputFilePattern
 			})
 
 			toValidFilename := func(s string) string {
@@ -290,14 +292,13 @@ func NewEpisode(
 				onError(err)
 			}
 
-			outputBase := fmt.Sprintf(
-				"South_Park_%v_S%02v_E%02v_%v_%v",
-				ep.Language.String(),
-				ep.SeasonNumber,
-				ep.EpisodeNumber,
-				maxQuality.String(),
-				toValidFilename(ep.Title),
-			)
+			outputBase := strings.NewReplacer(
+				"$S", fmt.Sprintf("%02v", ep.SeasonNumber),
+				"$E", fmt.Sprintf("%02v", ep.EpisodeNumber),
+				"$L", ep.Language.String(),
+				"$T", toValidFilename(ep.Title),
+				"$Q", maxQuality.String(),
+			).Replace(outputFilePattern)
 
 			doDownload = func() {
 				dl = dls.Add(
