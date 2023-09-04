@@ -1,7 +1,7 @@
 # southpark-downloader-ui
 Fully self-contained South Park downloader GUI, written in Go for Linux, Windows, MacOS &amp; Android.
 
-If you have any request or criticism in particular, feel free to open an issue.
+If you have any request or criticism in particular, feel free to open an issue (English is preferred, but German is also fine).
 
 ![Preview image](/preview.png)
 
