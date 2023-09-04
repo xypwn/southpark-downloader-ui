@@ -5,7 +5,7 @@ If you have any request or criticism in particular, feel free to open an issue (
 
 ![Preview image](/preview.png)
 
-## Running the binary
+## Running the app
 ### Download
 [From GitHub Releases](https://github.com/xypwn/southpark-downloader-ui/releases/latest)
 
@@ -38,6 +38,15 @@ Open a terminal and run `chmod +x <binary file name>`. This makes it so you can 
 Apple doesn't like it if you run programs that aren't certified by Apple.
 
 To run the program, you have to right-click it, then press open (NOT double-click!). It will show a warning and ask you if you really want to run the program. Press confirm.
+
+### From source (advanced users)
+You need to install [Golang](https://go.dev/dl/) first
+
+`git clone https://github.com/xypwn/southpark-downloader-ui && cd southpark-downloader-ui`
+
+`go build ./cmd/southpark-downloader-ui`
+
+If there's no error message, you should now have an executable binary called `southpark-downloader-ui` (with a `.exe` at the end for Windows)
 
 ## Roadmap
 - [X] Write a custom data binding type using generics (fyne is too restrictive)
