@@ -22,13 +22,13 @@ import (
 
 type SelectableEntry struct {
 	widget.Entry
-	OnSelected func()
+	OnSelected   func()
 	OnUnselected func()
 }
 
 func NewSelectableEntry() *SelectableEntry {
 	res := &SelectableEntry{
-		OnSelected: func() {},
+		OnSelected:   func() {},
 		OnUnselected: func() {},
 	}
 	res.ExtendBaseWidget(res)
@@ -189,7 +189,7 @@ func NewPreferences(ctx context.Context, cfgStor *logic.StorageItem[*logic.Confi
 					for _, c := range s {
 						if dollar {
 							if !strings.Contains("SELTQ", string(c)) {
-								return errors.New("unknown parameter: $"+string(c))
+								return errors.New("unknown parameter: $" + string(c))
 							}
 						}
 						dollar = c == '$'
@@ -200,7 +200,7 @@ func NewPreferences(ctx context.Context, cfgStor *logic.StorageItem[*logic.Confi
 				}
 				for _, v := range []string{"$S", "$E", "$L", "$T", "$Q"} {
 					if strings.Count(s, v) > 1 {
-						return errors.New("more than one instance of "+v)
+						return errors.New("more than one instance of " + v)
 					}
 				}
 				hasS := strings.Contains(s, "$S") // Season
@@ -255,7 +255,7 @@ func NewPreferences(ctx context.Context, cfgStor *logic.StorageItem[*logic.Confi
 							"$T", "Cartman_Gets_An_Anal_Probe",
 							"$Q", "Best",
 						)
-						example.SetText("Example: "+rep.Replace(s)+".mp4")
+						example.SetText("Example: " + rep.Replace(s) + ".mp4")
 					}
 					cfg.Change(func(c *logic.Config) *logic.Config {
 						c.OutputFilePattern = s
@@ -310,7 +310,7 @@ func NewPreferences(ctx context.Context, cfgStor *logic.StorageItem[*logic.Confi
 			if err != nil {
 				e := []byte(err.Error())
 				e[0] = byte(unicode.ToUpper(rune(e[0])))
-				errLabel.SetText("Error: "+string(e))
+				errLabel.SetText("Error: " + string(e))
 				errCnt.Show()
 				example.Hide()
 			} else {
@@ -319,7 +319,7 @@ func NewPreferences(ctx context.Context, cfgStor *logic.StorageItem[*logic.Confi
 			}
 		})
 
-		helpIndent := canvas.NewRectangle(color.RGBA{0,0,0,0})
+		helpIndent := canvas.NewRectangle(color.RGBA{0, 0, 0, 0})
 		helpIndent.SetMinSize(fyne.NewSize(10, 0))
 
 		res.secDownloads.Add(

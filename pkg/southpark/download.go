@@ -141,13 +141,15 @@ func (d *Downloader) Do() error {
 	if d.outputSubtitlePath != "" {
 		d.OnStatusChanged(DownloaderStatusDownloadingSubtitles, -1)
 
-		subs, err := GetEpisodeVTTSubtitles(d.ctx, parts)
+		subs, found, err := GetEpisodeVTTSubtitles(d.ctx, parts)
 		if err != nil {
 			return fmt.Errorf("GetEpisodeVTTSubtitles: %w", err)
 		}
 
-		if err := os.WriteFile(d.outputSubtitlePath, subs, 0666); err != nil {
-			return fmt.Errorf("write VTT subtitles: %w", err)
+		if found {
+			if err := os.WriteFile(d.outputSubtitlePath, subs, 0666); err != nil {
+				return fmt.Errorf("write VTT subtitles: %w", err)
+			}
 		}
 	}
 
