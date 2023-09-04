@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+    "net/url"
+    "strconv"
 
 	/*"os"
 	"runtime/pprof"*/
@@ -42,9 +44,25 @@ func main() {
 			},
 		)
 		copyBtn.Importance = widget.LowImportance
-		dialog.NewCustom("Error", "OK", container.NewVBox(
+		issueBtn := widget.NewButtonWithIcon(
+			"Automatically file a bug report on GitHub",
+			theme.MailComposeIcon(),
+			func() {
+                issueURL, _ := url.Parse("https://github.com/xypwn/southpark-downloader-ui/issues/new?labels=bug&"+
+                    "title="+url.QueryEscape("Internal Error Bug Report [Automatically Created via App]")+"&"+
+                    "body="+url.QueryEscape("Version: "+app.Metadata().Version+
+                        " build "+strconv.Itoa(app.Metadata().Build)+"\n"+
+                        "Error: "+err.Error()),
+
+                )
+                app.OpenURL(issueURL)
+			},
+		)
+		issueBtn.Importance = widget.LowImportance
+		dialog.ShowCustom("An internal error has occurred", "OK", container.NewVBox(
 			errText,
 			copyBtn,
+            issueBtn,
 		), window)
 	}
 
