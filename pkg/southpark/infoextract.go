@@ -116,7 +116,7 @@ func (h Host) String() string {
 	case HostSPSDK:
 		return "www.southparkstudios.dk"
 	case HostSPCCCOM:
-		return "www.southpark.cc.com"
+		return "southpark.cc.com"
 	case HostSPNL:
 		return "www.southpark.nl"
 	default:
