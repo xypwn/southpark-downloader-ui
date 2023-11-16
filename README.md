@@ -13,8 +13,7 @@ If you have any request or criticism in particular, feel free to open an issue (
 ### Windows
 Just extract the zip and double-click the .exe :)
 
-### Linux (standalone)
-#### Graphical file manager (Gnome Nautilus, PCManFM etc.)
+### Linux
 Extract the archive.
 
 Open a terminal in the extracted directory that contains the `makefile`.
