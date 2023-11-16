@@ -7,37 +7,24 @@ If you have any request or criticism in particular, feel free to open an issue (
 
 ## Running the app
 ### Download
-[From GitHub Releases](https://github.com/xypwn/southpark-downloader-ui/releases/latest)
+[Download](https://geoffrey-artefacts.fynelabs.com/github/andydotxyz/xypwn/southpark-downloader-ui/cmd/southpark-downloader-ui/386/index.html)
+(thanks to fynelabs for the builds)
 
 ### Windows
-Just double-click the .exe :)
+Just extract the zip and double-click the .exe :)
 
 ### Linux (standalone)
 #### Graphical file manager (Gnome Nautilus, PCManFM etc.)
-Right-click the executable. Under properties, toggle the 'Executable' switch on, **OR** under 'Permissions' -> 'Execute', select 'Everyone'.
+Extract the archive.
 
-Now you can double-click and run :)
+Open a terminal in the extracted directory that contains the `makefile`.
 
-#### Terminal
-Run `chmod +x <binary file name>`.
-
-Now you can run it with `./<binary file name>`, or using the graphical method.
-
-### Linux (install)
-Unzip the file.
-
-Open a terminal in the folder of the unzipped file. Make sure you have `make` installed.
-
-Run `make user-install` for a local install, or `sudo make install` for a system-wide install.
+Run `sudo make install` (system-wide) or `sudo make user-install` (local).
 
 ### MacOS
-Thanks to @KatzeMau for testing
+Extract the archive.
 
-Open a terminal and run `chmod +x <binary file name>`. This makes it so you can run the file.
-
-Apple doesn't like it if you run programs that aren't certified by Apple.
-
-To run the program, you have to right-click it, then press open (NOT double-click!). It will show a warning and ask you if you really want to run the program. Press confirm.
+Run the .app using **right click** (two fingers), or it will NOT open.
 
 ### From source (advanced users)
 You need to install [Golang](https://go.dev/dl/) first
