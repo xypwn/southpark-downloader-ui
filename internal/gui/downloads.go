@@ -132,7 +132,7 @@ type Downloads struct {
 	obj    fyne.CanvasObject
 }
 
-func NewDownloads(dls *logic.Downloads) *Downloads {
+func NewDownloads(dls *logic.Downloads, mobile bool) *Downloads {
 	res := &Downloads{
 		filter: data.NewListFilter(
 			dls.ListBinding,
@@ -418,8 +418,31 @@ func NewDownloads(dls *logic.Downloads) *Downloads {
 		patternClient.Examine(patternChangedFunc)
 	}
 
-	res.obj = container.NewBorder(
-		container.NewBorder(
+	var topbar *fyne.Container
+	if mobile {
+		topbar = container.NewVBox(
+			container.NewBorder(
+				nil,
+				nil,
+				nil,
+				clearFiltersButton,
+				search,
+			),
+			container.NewBorder(
+				nil,
+				nil,
+				nil,
+				container.NewHBox(
+					prioDownBtn,
+					prioUpBtn,
+					prioToBottomBtn,
+					prioToTopBtn,
+				),
+				sel,
+			),
+		)
+	} else {
+		topbar = container.NewBorder(
 			nil,
 			nil,
 			sel,
@@ -431,7 +454,11 @@ func NewDownloads(dls *logic.Downloads) *Downloads {
 				prioToTopBtn,
 			),
 			search,
-		),
+		)
+	}
+
+	res.obj = container.NewBorder(
+		topbar,
 		nil,
 		nil,
 		nil,

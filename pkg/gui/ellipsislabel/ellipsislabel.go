@@ -104,7 +104,7 @@ func (r *ellipsisLabelRenderer) Layout(size fyne.Size) {
 		} else {
 			lnLen = maxTextLenWithWidth(remaining, maxTextWidth, segment.Style.TextStyle, textSize)
 			if lnLen != len(remaining) {
-				for i := 0;; i++ {
+				for i := 0; ; i++ {
 					if lnLen-i < 0 {
 						break
 					}
@@ -121,7 +121,7 @@ func (r *ellipsisLabelRenderer) Layout(size fyne.Size) {
 		if lnLen <= 0 {
 			break
 		}
-		
+
 		if wordBreak != -1 {
 			lnLen -= wordBreak
 		}
@@ -132,7 +132,7 @@ func (r *ellipsisLabelRenderer) Layout(size fyne.Size) {
 			res += ellipsis
 		}
 		res += "\n"
-		
+
 		if wordBreak != -1 {
 			remaining = remaining[lnLen+1:]
 		} else {

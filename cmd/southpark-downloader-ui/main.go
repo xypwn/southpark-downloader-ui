@@ -73,7 +73,9 @@ func main() {
 
 	dls := logic.NewDownloads(cfgStor.NewClient(), onError)
 
-	downloads := gui.NewDownloads(dls)
+	mobile := false
+
+	downloads := gui.NewDownloads(dls, mobile)
 
 	logic.ConnectDownloadsToDownloadsInfo(ctx, dls, dlInfoStor, func(err error) {
 		panic(err)
@@ -87,6 +89,7 @@ func main() {
 		func(newClipboardContent string) {
 			window.Clipboard().SetContent(newClipboardContent)
 		},
+		mobile,
 	)
 
 	appTabs := container.NewAppTabs(

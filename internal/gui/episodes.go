@@ -30,6 +30,7 @@ func NewEpisodeList(
 	onInfo func(title, text string),
 	onError func(error),
 	setClipboard func(string),
+	mobile bool,
 ) (episodeList *EpisodeList, destroy func()) {
 	var destroyMtx sync.Mutex
 	var destroyFns []func()
@@ -80,6 +81,7 @@ func NewEpisodeList(
 						},
 						false,
 						true,
+						mobile,
 					)
 					destroyMtx.Lock()
 					destroyFns = append(destroyFns, destroy)
@@ -119,6 +121,7 @@ func NewEpisodesPanel(
 	onInfo func(title, text string),
 	onError func(error),
 	setClipboard func(string),
+	mobile bool,
 ) *EpisodesPanel {
 	res := &EpisodesPanel{}
 	res.ExtendBaseWidget(res)
@@ -166,7 +169,7 @@ func NewEpisodesPanel(
 					cleanupEpisodesFn()
 					season := seasons[len(seasons)-1-id]
 					episodes.RemoveAll()
-					episodeList, destroy := NewEpisodeList(ctx, season, dls, cache, cfgClient, onInfo, onError, setClipboard)
+					episodeList, destroy := NewEpisodeList(ctx, season, dls, cache, cfgClient, onInfo, onError, setClipboard, mobile)
 					cleanupEpisodesFn = destroy
 					episodes.Add(episodeList)
 				}
@@ -239,7 +242,12 @@ func NewEpisodesPanel(
 				),
 				episodes,
 			)
-			split.SetOffset(0.1)
+			if mobile {
+				split.Horizontal = false
+				split.SetOffset(0.2)
+			} else {
+				split.SetOffset(0.1)
+			}
 
 			mainCnt := container.NewMax(split)
 
@@ -278,6 +286,7 @@ func NewEpisodesPanel(
 										},
 										true,
 										true,
+										mobile,
 									)
 									vbox.Add(ep)
 									cleanupSearchResultsFns = append(cleanupSearchResultsFns, destroy)
@@ -336,20 +345,37 @@ func NewEpisodesPanel(
 			clearSearchButton.Importance = widget.LowImportance
 			clearSearchButton.Disable()
 
-			return container.NewBorder(
-				container.NewBorder(
-					nil,
-					nil,
+			languageAndInfo := container.NewBorder(
+				nil,
+				nil,
+				nil,
+				languageSelHelp,
+				languageSel,
+			)
+			var searchAndLanguage *fyne.Container
+			if mobile {
+				searchAndLanguage = container.NewVBox(
 					container.NewBorder(
 						nil,
 						nil,
 						nil,
-						languageSelHelp,
-						languageSel,
+						clearSearchButton,
+						search,
 					),
+					languageAndInfo,
+				)
+			} else {
+				searchAndLanguage = container.NewBorder(
+					nil,
+					nil,
+					languageAndInfo,
 					clearSearchButton,
 					search,
-				),
+				)
+			}
+
+			return container.NewBorder(
+				searchAndLanguage,
 				nil,
 				nil,
 				nil,

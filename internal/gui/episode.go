@@ -53,6 +53,7 @@ func NewEpisode(
 	getEpisode func() (sp.Episode, error),
 	showSeasonNumber bool,
 	showEpisodeNumber bool,
+	mobile bool,
 ) (ep *Episode, destroy func()) {
 	var doDestroyMtx sync.Mutex
 	doDestroy := func() {}
@@ -133,35 +134,47 @@ func NewEpisode(
 	res.thumbnailSize = fyne.NewSize(192, 108)
 	res.placeholderImage.SetMinSize(res.thumbnailSize)
 
-	res.obj = container.NewBorder(
-		nil,
-		nil,
-		container.NewMax(
-			res.placeholderImage,
-			res.thumbnailImageCnt,
-			res.thumbnailOverlay,
-			res.thumbnailText,
-			container.NewBorder(
-				nil,
-				container.NewMax(
-					res.thumbnailProgress,
-					res.progressInfinite,
-					res.progressDiscrete,
-					res.progressText,
-				),
-				nil,
-				nil,
-			),
-		),
-		res.button,
+	thumbnail := container.NewMax(
+		res.placeholderImage,
+		res.thumbnailImageCnt,
+		res.thumbnailOverlay,
+		res.thumbnailText,
 		container.NewBorder(
-			res.title,
+			nil,
+			container.NewMax(
+				res.thumbnailProgress,
+				res.progressInfinite,
+				res.progressDiscrete,
+				res.progressText,
+			),
 			nil,
 			nil,
-			nil,
-			res.description,
 		),
 	)
+
+	if mobile {
+		res.obj = container.NewBorder(
+			res.title,
+			res.button,
+			thumbnail,
+			nil,
+			res.description,
+		)
+	} else {
+		res.obj = container.NewBorder(
+			nil,
+			nil,
+			thumbnail,
+			res.button,
+			container.NewBorder(
+				res.title,
+				nil,
+				nil,
+				nil,
+				res.description,
+			),
+		)
+	}
 
 	res.mtx.Lock()
 	titlePrefix := ""
