@@ -218,6 +218,7 @@ type highlevelMedia struct {
 	StreamMethod    string
 	StreamDuration  int
 	StreamType      string
+	HasCaptions     bool
 	CaptionLang     string
 	CaptionLabel    string
 	Captions        []highlevelMediaCaption
@@ -245,11 +246,11 @@ func getHighlevelMedia(ctx context.Context, mediaGenURL string) (highlevelMedia,
 			len(videoItem.Rendition))
 	}
 	rendition := videoItem.Rendition[0]
-	if len(videoItem.Transcript) != 1 {
-		return highlevelMedia{}, fmt.Errorf("mediagen JSON: expected exactly 1 video transcript, but found %v",
+	hasTranscript := len(videoItem.Transcript) > 0
+	if len(videoItem.Transcript) > 1 {
+		return highlevelMedia{}, fmt.Errorf("mediagen JSON: expected at most 1 video transcript, but found %v",
 			len(videoItem.Transcript))
 	}
-	transcript := videoItem.Transcript[0]
 	duration, err := strconv.ParseInt(rendition.Duration, 10, 32)
 	if err != nil {
 		return highlevelMedia{}, fmt.Errorf("parsing stream duration: %w", err)
@@ -260,13 +261,17 @@ func getHighlevelMedia(ctx context.Context, mediaGenURL string) (highlevelMedia,
 	res.StreamMethod = rendition.Method
 	res.StreamDuration = int(duration)
 	res.StreamType = rendition.Type
-	res.CaptionLang = transcript.Srclang
-	res.CaptionLabel = transcript.Label
-	for _, t := range transcript.Typographic {
-		res.Captions = append(res.Captions, highlevelMediaCaption{
-			Format: t.Format,
-			URL:    t.Src,
-		})
+	res.HasCaptions = hasTranscript
+	if hasTranscript {
+		transcript := videoItem.Transcript[0]
+		res.CaptionLang = transcript.Srclang
+		res.CaptionLabel = transcript.Label
+		for _, t := range transcript.Typographic {
+			res.Captions = append(res.Captions, highlevelMediaCaption{
+				Format: t.Format,
+				URL:    t.Src,
+			})
+		}
 	}
 	return res, nil
 }
@@ -565,17 +570,20 @@ func GetEpisodeTSVideo(ctx context.Context, parts []EpisodePart, startSegment in
 	return nil
 }
 
-func GetEpisodeVTTSubtitles(ctx context.Context, parts []EpisodePart) ([]byte, error) {
+func GetEpisodeVTTSubtitles(ctx context.Context, parts []EpisodePart) (subs []byte, found bool, err error) {
 	vttParts := make([][]byte, 0, len(parts))
 	durations := make([]float64, 0, len(parts))
 	for i, part := range parts {
 		if len(part.VTTSubtitleURLs) != 1 {
-			return nil, fmt.Errorf("part %v: expected exactly 1 subtitle track, but found %v", i, len(part.VTTSubtitleURLs))
+			if len(part.VTTSubtitleURLs) == 0 {
+				return []byte{}, false, nil
+			}
+			return nil, false, fmt.Errorf("part %v: expected at most 1 subtitle track, but found %v", i, len(part.VTTSubtitleURLs))
 		}
 
 		vttPart, err := httputils.GetBodyWithContext(ctx, part.VTTSubtitleURLs[0])
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		vttParts = append(vttParts, vttPart)
 
@@ -588,7 +596,7 @@ func GetEpisodeVTTSubtitles(ctx context.Context, parts []EpisodePart) ([]byte, e
 
 	res, err := mergeVTTSubtitles(vttParts, durations)
 	if err != nil {
-		return nil, fmt.Errorf("mergeVTTSubtitles: %w", err)
+		return nil, false, fmt.Errorf("mergeVTTSubtitles: %w", err)
 	}
-	return res, nil
+	return res, true, nil
 }

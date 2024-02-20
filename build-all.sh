@@ -39,7 +39,7 @@ mkdir -p build
 mv "$SRC/southpark-downloader-ui.tar.xz" "build/$NAME-linux-install.tar.xz"
 mv "$SRC/southpark_downloader_ui.apk" "build/$(echo "$NAME" | tr - _)_android.apk"
 mv "fyne-cross/bin/windows-amd64/southpark-downloader-ui.exe" "build/$NAME-windows.exe"
-mv "fyne-cross/bin/darwin-amd64/southpark-downloader-ui" "build/$NAME-macos-x64"
+tar -C "fyne-cross/dist/darwin-amd64/" -czf "build/$NAME-macos-x64.tar.gz" "southpark-downloader-ui.app" 
 
 TMPDIR="$(mktemp -d)"
 tar -xf "build/$NAME-linux-install.tar.xz" -C "$TMPDIR" "usr/local/bin/southpark-downloader-ui"
