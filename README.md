@@ -7,8 +7,9 @@ If you have any request or criticism in particular, feel free to open an issue (
 
 ## Running the app
 ### Download
-[Download](https://geoffrey-artefacts.fynelabs.com/github/andydotxyz/xypwn/southpark-downloader-ui/cmd/southpark-downloader-ui/386/index.html)
-(thanks to fynelabs for the builds)
+- [Windows (64-bit)](https://github.com/xypwn/southpark-downloader-ui/releases/latest/download/southpark-downloader-ui-windows-amd64.exe)
+- [Linux (64-bit)](https://github.com/xypwn/southpark-downloader-ui/releases/latest/download/southpark-downloader-ui-linux-amd64.tar.xz)
+- [MacOS (Intel)](https://github.com/xypwn/southpark-downloader-ui/releases/latest/download/southpark-downloader-ui-macos-amd64.tar.gz)
 
 ### Windows
 Just extract the zip and double-click the .exe :)
@@ -16,7 +17,7 @@ Just extract the zip and double-click the .exe :)
 ### Linux
 Extract the archive.
 
-Open a terminal in the extracted directory that contains the `makefile`.
+Open a terminal in the extracted directory that contains the `Makefile`.
 
 Run `sudo make install` (system-wide) or `sudo make user-install` (local).
 
