@@ -55,8 +55,10 @@ const (
 	DownloadStatusWaiting DownloadStatus = iota
 	DownloadStatusFetchingMetadata
 	DownloadStatusDownloadingVideo
+	DownloadStatusDownloadingAudio
 	DownloadStatusDownloadingSubtitles
-	DownloadStatusPostprocessing
+	DownloadStatusPostprocessingVideo
+	DownloadStatusPostprocessingSubtitles
 	DownloadStatusDone
 	DownloadStatusInterrupted
 )
@@ -75,10 +77,14 @@ func (v DownloadProgress) String() string {
 		text = "Fetching Metadata"
 	case DownloadStatusDownloadingVideo:
 		text = "Downloading Video"
+	case DownloadStatusDownloadingAudio:
+		text = "Downloading Audio"
 	case DownloadStatusDownloadingSubtitles:
-		text = "Downloading Subtitles"
-	case DownloadStatusPostprocessing:
-		text = "Postprocessing"
+		text = "Downloading Subs"
+	case DownloadStatusPostprocessingVideo:
+		text = "Processing Video"
+	case DownloadStatusPostprocessingSubtitles:
+		text = "Processing Subs"
 	case DownloadStatusDone:
 		text = "Done"
 	}
@@ -127,8 +133,7 @@ type Downloads struct {
 }
 
 func NewDownloads(cfgClient *data.Client[*Config], onError func(error)) *Downloads {
-	var res *Downloads
-	res = &Downloads{
+	res := &Downloads{
 		ListBinding: data.NewListBinding[*Download](),
 	}
 	var nConcurrentInit int
@@ -213,10 +218,14 @@ func (dls *Downloads) Add(ctx context.Context, params DownloadParams, onError fu
 				s = DownloadStatusFetchingMetadata
 			case sp.DownloaderStatusDownloadingVideo:
 				s = DownloadStatusDownloadingVideo
+			case sp.DownloaderStatusDownloadingAudio:
+				s = DownloadStatusDownloadingAudio
 			case sp.DownloaderStatusDownloadingSubtitles:
 				s = DownloadStatusDownloadingSubtitles
-			case sp.DownloaderStatusPostprocessing:
-				s = DownloadStatusPostprocessing
+			case sp.DownloaderStatusPostprocessingVideo:
+				s = DownloadStatusPostprocessingVideo
+			case sp.DownloaderStatusPostprocessingSubtitles:
+				s = DownloadStatusPostprocessingSubtitles
 			}
 			setProgress(DownloadProgress{
 				Status: s,

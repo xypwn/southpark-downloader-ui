@@ -1,6 +1,7 @@
 package southpark
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -15,8 +16,10 @@ type DownloaderStatus int
 const (
 	DownloaderStatusFetchingMetadata DownloaderStatus = iota
 	DownloaderStatusDownloadingVideo
+	DownloaderStatusDownloadingAudio
 	DownloaderStatusDownloadingSubtitles
-	DownloaderStatusPostprocessing
+	DownloaderStatusPostprocessingVideo
+	DownloaderStatusPostprocessingSubtitles
 )
 
 type Downloader struct {
@@ -57,19 +60,27 @@ func NewDownloader(
 func (d *Downloader) Do() error {
 	d.OnStatusChanged(DownloaderStatusFetchingMetadata, -1)
 
-	parts, err := GetEpisodeParts(d.ctx, d.episode, d.selectFormat)
+	stream, err := GetEpisodeStream(d.ctx, d.episode, d.selectFormat)
 	if err != nil {
-		return fmt.Errorf("GetEpisodeParts: %w", err)
+		return fmt.Errorf("GetEpisodeStream: %w", err)
+	}
+
+	getSegFileName := func(n int) string {
+		var ext string
+		if n < len(stream.Video.Segments) {
+			ext = "ts"
+		} else if n < len(stream.Video.Segments)+len(stream.Audio.Segments) {
+			ext = "aac"
+		} else if n < len(stream.Video.Segments)+len(stream.Audio.Segments)+len(stream.Subs.Segments) {
+			ext = "vtt"
+		}
+		return path.Join(d.tmpDirPath, fmt.Sprintf("Seg%04v.%v", n, ext))
 	}
 
 	if d.outputVideoPath != "" {
 		d.OnStatusChanged(DownloaderStatusDownloadingVideo, 0)
 
-		getSegFileName := func(n int) string {
-			return path.Join(d.tmpDirPath, fmt.Sprintf("Seg%04v.ts", n))
-		}
-
-		startSegment := 0
+		startTotalSegment := 0
 		if _, err := os.Stat(d.tmpDirPath); err == nil {
 			i := 0
 			for {
@@ -81,7 +92,7 @@ func (d *Downloader) Do() error {
 			if i > 0 {
 				// Start at the segment before the last existing one, since
 				// writing to the last one may have been partial
-				startSegment = i - 1
+				startTotalSegment = i - 1
 			}
 		} else {
 			if err := os.MkdirAll(d.tmpDirPath, os.ModePerm); err != nil {
@@ -89,20 +100,36 @@ func (d *Downloader) Do() error {
 			}
 		}
 
-		totalSegments := GetPartsTotalHLSSegments(parts)
-		currentSegment := startSegment
-		if err := GetEpisodeTSVideo(d.ctx, parts, startSegment, func(frame []byte) error {
-			if err := os.WriteFile(getSegFileName(currentSegment), frame, 0644); err != nil {
-				return err
-			}
-			d.OnStatusChanged(DownloaderStatusDownloadingVideo, float64(currentSegment)/float64(totalSegments))
-			currentSegment++
-			return nil
-		}); err != nil {
+		currentTotalSegment := startTotalSegment
+		if err := DownloadEpisodeStream(d.ctx, stream, startTotalSegment,
+			func(segmentIdx int) {
+				currentTotalSegment = segmentIdx
+			},
+			func(frame []byte, relSegIdx int) error {
+				if err := os.WriteFile(getSegFileName(currentTotalSegment), frame, 0644); err != nil {
+					return err
+				}
+				d.OnStatusChanged(DownloaderStatusDownloadingVideo, float64(relSegIdx)/float64(len(stream.Video.Segments)))
+				return nil
+			},
+			func(frame []byte, relSegIdx int) error {
+				if err := os.WriteFile(getSegFileName(currentTotalSegment), frame, 0644); err != nil {
+					return err
+				}
+				d.OnStatusChanged(DownloaderStatusDownloadingAudio, float64(relSegIdx)/float64(len(stream.Audio.Segments)))
+				return nil
+			},
+			func(frame []byte, relSegIdx int) error {
+				if err := os.WriteFile(getSegFileName(currentTotalSegment), frame, 0644); err != nil {
+					return err
+				}
+				d.OnStatusChanged(DownloaderStatusDownloadingSubtitles, float64(relSegIdx)/float64(len(stream.Subs.Segments)))
+				return nil
+			}); err != nil {
 			return fmt.Errorf("GetEpisodeAsTS: %w", err)
 		}
 
-		d.OnStatusChanged(DownloaderStatusPostprocessing, 0)
+		d.OnStatusChanged(DownloaderStatusPostprocessingVideo, 0)
 
 		outputFileMP4, err := os.Create(d.outputVideoPath)
 		if err != nil {
@@ -110,47 +137,68 @@ func (d *Downloader) Do() error {
 		}
 		defer outputFileMP4.Close()
 
-		baseTsReader, tsWriter := io.Pipe()
-		tsReader := ioutils.NewCtxReader(d.ctx, baseTsReader)
+		segReader := func(startSeg, endSeg int, onError func(error)) io.Reader {
+			baseReader, w := io.Pipe()
+			r := ioutils.NewCtxReader(d.ctx, baseReader)
 
-		var convertErr error
-		go func() {
-			for i := 0; i < totalSegments; i++ {
-				tsFileName := getSegFileName(i)
-				tsData, err := os.ReadFile(tsFileName)
-				if err != nil {
-					convertErr = err
-					break
+			go func() {
+				for i := startSeg; i < endSeg; i++ {
+					data, err := os.ReadFile(getSegFileName(i))
+					if err != nil {
+						onError(err)
+						break
+					}
+					w.Write(data)
+					d.OnStatusChanged(DownloaderStatusPostprocessingVideo, float64(i)/float64(endSeg))
 				}
-				tsWriter.Write(tsData)
-				d.OnStatusChanged(DownloaderStatusPostprocessing, float64(i)/float64(totalSegments))
-			}
-			tsWriter.Close()
-		}()
-		if err := ConvertTSToMP4(tsReader, outputFileMP4); err != nil {
-			return fmt.Errorf("convert MPEG-TS to mp4: %w", err)
+				w.Close()
+			}()
+
+			return r
 		}
-		if convertErr != nil {
-			return fmt.Errorf("convert MPEG-TS to mp4: %w", convertErr)
+
+		var videoConvertErr error
+		tsReader := segReader(0, len(stream.Video.Segments), func(err error) { videoConvertErr = err })
+
+		var audioConvertErr error
+		aacReader := segReader(len(stream.Video.Segments), len(stream.Video.Segments)+len(stream.Audio.Segments), func(err error) { audioConvertErr = err })
+
+		if err := ConvertTSAndAACToMP4(tsReader, aacReader, outputFileMP4); err != nil {
+			return fmt.Errorf("convert MPEG-TS and AAC to MP4: %w", err)
 		}
-		if err := os.RemoveAll(d.tmpDirPath); err != nil {
-			return fmt.Errorf("remove temporary media directory: %w", err)
+		if videoConvertErr != nil {
+			return fmt.Errorf("convert MPEG-TS to MP4: %w", videoConvertErr)
+		}
+		if audioConvertErr != nil {
+			return fmt.Errorf("convert AAC to MP4: %w", audioConvertErr)
 		}
 	}
 
-	if d.outputSubtitlePath != "" {
-		d.OnStatusChanged(DownloaderStatusDownloadingSubtitles, -1)
-
-		subs, found, err := GetEpisodeVTTSubtitles(d.ctx, parts)
-		if err != nil {
-			return fmt.Errorf("GetEpisodeVTTSubtitles: %w", err)
-		}
-
-		if found {
-			if err := os.WriteFile(d.outputSubtitlePath, subs, 0666); err != nil {
-				return fmt.Errorf("write VTT subtitles: %w", err)
+	if d.outputSubtitlePath != "" && len(stream.Subs.Segments) > 0 {
+		var out bytes.Buffer
+		startSeg := len(stream.Video.Segments) + len(stream.Audio.Segments)
+		endSeg := len(stream.Video.Segments) + len(stream.Audio.Segments) + len(stream.Subs.Segments)
+		for i := startSeg; i < endSeg; i++ {
+			data, err := os.ReadFile(getSegFileName(i))
+			if err != nil {
+				return fmt.Errorf("read subs fragment: %w", err)
 			}
+			if i != startSeg {
+				data = bytes.TrimPrefix(data, []byte("WEBVTT\r\n\r\n"))
+			}
+			if _, err := out.Write(data); err != nil {
+				return fmt.Errorf("write subs: %w", err)
+			}
+			d.OnStatusChanged(DownloaderStatusPostprocessingSubtitles, float64(i)/float64(endSeg))
 		}
+
+		if err := os.WriteFile(d.outputSubtitlePath, out.Bytes(), 0666); err != nil {
+			return fmt.Errorf("write VTT subtitles: %w", err)
+		}
+	}
+
+	if err := os.RemoveAll(d.tmpDirPath); err != nil {
+		return fmt.Errorf("remove temporary media directory: %w", err)
 	}
 
 	return nil

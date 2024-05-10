@@ -319,7 +319,7 @@ func NewEpisode(
 					logic.DownloadParams{
 						Episode:            ep,
 						MaxQuality:         maxQuality,
-						TmpDirPath:         path.Join(downloadPath, "~TS_"+outputBase+".tmp"),
+						TmpDirPath:         path.Join(downloadPath, "~TMP_"+outputBase),
 						OutputVideoPath:    path.Join(downloadPath, outputBase+".mp4"),
 						OutputSubtitlePath: path.Join(downloadPath, outputBase+".vtt"),
 					},

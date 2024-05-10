@@ -34,8 +34,10 @@ func downloadFilterFunc(dl *logic.Download, filter downloadFilter) bool {
 	case downloadStatusFilterDownloading:
 		if status != logic.DownloadStatusFetchingMetadata &&
 			status != logic.DownloadStatusDownloadingVideo &&
-			status != logic.DownloadStatusPostprocessing &&
-			status != logic.DownloadStatusDownloadingSubtitles {
+			status != logic.DownloadStatusDownloadingAudio &&
+			status != logic.DownloadStatusDownloadingSubtitles &&
+			status != logic.DownloadStatusPostprocessingVideo &&
+			status != logic.DownloadStatusPostprocessingSubtitles {
 			return false
 		}
 	case downloadStatusFilterCompleted:

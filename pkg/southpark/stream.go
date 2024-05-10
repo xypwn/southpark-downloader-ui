@@ -4,20 +4,17 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/xypwn/southpark-downloader-ui/pkg/httputils"
-
-	"github.com/yapingcat/gomedia/go-mp4"
-	"github.com/yapingcat/gomedia/go-mpeg2"
 )
 
 // Processes strings like METHOD=AES-128,URI="https://.../",IV=0xDEADBEEF
@@ -66,7 +63,7 @@ func getExtM3UInfo(data string, v any) error {
 		})
 
 		if fName == "" {
-			return fmt.Errorf("unable to find a fitting field for '%v'", key)
+			continue
 		}
 
 		if !f.IsValid() {
@@ -112,10 +109,20 @@ func getExtM3UInfo(data string, v any) error {
 	return nil
 }
 
-func downloadAndDecryptAES128Segment(ctx context.Context, url string, key []byte, iv []byte) ([]byte, error) {
+func downloadAndDecryptAES128Segment(ctx context.Context, url string, key []byte, segmentIdx int) ([]byte, error) {
 	data, err := httputils.GetBodyWithContext(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("get AES128 encrypted segment: %w", err)
+	}
+
+	if len(data) < 16 {
+		return nil, fmt.Errorf("cipher data too short")
+	}
+	var iv [16]byte
+	{
+		// https://github.com/FFmpeg/FFmpeg/blob/d7924a4f60f2088de1e6790345caba929eb97030/libavformat/hls.c#L882
+		startSeq := 1 // #EXT-X-MEDIA-SEQUENCE
+		binary.BigEndian.PutUint64(iv[8:], uint64(startSeq+segmentIdx))
 	}
 
 	block, err := aes.NewCipher(key)
@@ -123,7 +130,7 @@ func downloadAndDecryptAES128Segment(ctx context.Context, url string, key []byte
 		return nil, fmt.Errorf("aes.NewCipher: %w", err)
 	}
 
-	mode := cipher.NewCBCDecrypter(block, iv)
+	mode := cipher.NewCBCDecrypter(block, iv[:])
 
 	// Make sure encrypted data length is a multiple of AES block size
 	if len(data)%aes.BlockSize != 0 {
@@ -136,144 +143,60 @@ func downloadAndDecryptAES128Segment(ctx context.Context, url string, key []byte
 	return data, nil
 }
 
-type feedDoc struct {
-	Feed struct {
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		Image       struct {
-			URL string `json:"url"`
-		} `json:"image"`
-		Items []struct {
-			AirDate     string `json:"airDate"`
-			Description string `json:"description"`
-			Duration    int    `json:"duration"`
-			Group       struct {
-				Content string `json:"content"`
-			} `json:"group"`
-			Title string `json:"title"`
-		} `json:"items"`
-	} `json:"feed"`
+type videoServiceDoc struct {
+	Stitchedstream struct {
+		Source string `json:"source"`
+	} `json:"stitchedstream"`
+	Content []struct {
+		ID       string `json:"id"`
+		Chapters []struct {
+			Sequence int
+			ID       string `json:"id"`
+		} `json:"chapters"`
+	} `json:"content"`
 }
 
-func getMediaGenURLs(ctx context.Context, mgid string, url string) ([]string, error) {
-	infoURL := fmt.Sprintf("http://media.mtvnservices.com/pmt/e1/access/index.html?uri=%v&configtype=edge&ref=%v", mgid, url)
-
-	dataJSON, err := httputils.GetBodyWithContext(ctx, infoURL)
-	if err != nil {
-		return nil, fmt.Errorf("get feed doc: %w", err)
+func getMediaMasterURL(ctx context.Context, url string) (string, error) {
+	var videoServiceURL string
+	{
+		data, err := getWebsiteDataFromURL(ctx, url)
+		if err != nil {
+			return "", fmt.Errorf("get episode website data: %w", err)
+		}
+		for _, v := range data.Children {
+			if v.HandleTVEAuthRedirection != nil {
+				videoServiceURL = v.HandleTVEAuthRedirection.VideoDetail.VideoServiceURL
+				break
+			}
+		}
+		if cutURL, _, found := strings.Cut(videoServiceURL, "?"); found {
+			videoServiceURL = cutURL
+		} else {
+			return "", fmt.Errorf("video service URL does not contain a query: '%v'", videoServiceURL)
+		}
+		videoServiceURL += "?clientPlatform=desktop"
 	}
 
-	var data feedDoc
+	dataJSON, err := httputils.GetBodyWithContext(ctx, videoServiceURL)
+	if err != nil {
+		return "", fmt.Errorf("get video service doc: %w", err)
+	}
+
+	var data videoServiceDoc
 	err = json.Unmarshal(dataJSON, &data)
 	if err != nil {
-		return nil, fmt.Errorf("parse feed doc: %w", err)
+		return "", fmt.Errorf("parse video service doc: %w", err)
 	}
 
-	var res []string
-	for _, v := range data.Feed.Items {
-		url := v.Group.Content
-		url = strings.Replace(url, "&device={device}", "", 1)
-		url += "&acceptMethods=hls"
-		url += "&format=json"
-		res = append(res, url)
-	}
-	return res, nil
+	return data.Stitchedstream.Source, nil
 }
 
-type mediaGenDoc struct {
-	Package struct {
-		Version string `json:"version"`
-		Video   struct {
-			Item []struct {
-				OriginationDate string `json:"origination_date"`
-				Rendition       []struct {
-					Cdn      string `json:"cdn"`
-					Method   string `json:"method"`
-					Duration string `json:"duration"`
-					Type     string `json:"type"`
-					Src      string `json:"src"`
-					Rdcount  string `json:"rdcount"`
-				} `json:"rendition"`
-				Transcript []struct {
-					Kind        string `json:"kind"`
-					Srclang     string `json:"srclang"`
-					Label       string `json:"label"`
-					Typographic []struct {
-						Format string `json:"format"`
-						Src    string `json:"src"`
-					} `json:"typographic"`
-				} `json:"transcript"`
-			} `json:"item"`
-		} `json:"video"`
-	} `json:"package"`
-}
-
-type highlevelMediaCaption struct {
-	Format string
-	URL    string
-}
-
-type highlevelMedia struct {
-	StreamMasterURL string
-	StreamMethod    string
-	StreamDuration  int
-	StreamType      string
-	HasCaptions     bool
-	CaptionLang     string
-	CaptionLabel    string
-	Captions        []highlevelMediaCaption
-}
-
-func getHighlevelMedia(ctx context.Context, mediaGenURL string) (highlevelMedia, error) {
-	body, err := httputils.GetBodyWithContext(ctx, mediaGenURL)
-	if err != nil {
-		return highlevelMedia{}, fmt.Errorf("get mediagen doc: %w", err)
+func uriPrefixFromMasterURL(masterURL string) (string, error) {
+	if s, _, found := strings.Cut(masterURL, "/master.m3u8?"); found {
+		return s + "/", nil
+	} else {
+		return "", errors.New("invalid master URL: does not point to master.m3u8")
 	}
-
-	var doc mediaGenDoc
-	err = json.Unmarshal(body, &doc)
-	if err != nil {
-		return highlevelMedia{}, fmt.Errorf("parse mediagen doc: %w", err)
-	}
-
-	if len(doc.Package.Video.Item) != 1 {
-		return highlevelMedia{}, fmt.Errorf("mediagen JSON: expected exactly 1 video item, but found %v",
-			len(doc.Package.Video.Item))
-	}
-	videoItem := doc.Package.Video.Item[0]
-	if len(videoItem.Rendition) != 1 {
-		return highlevelMedia{}, fmt.Errorf("mediagen JSON: expected exactly 1 video rendition, but found %v",
-			len(videoItem.Rendition))
-	}
-	rendition := videoItem.Rendition[0]
-	hasTranscript := len(videoItem.Transcript) > 0
-	if len(videoItem.Transcript) > 1 {
-		return highlevelMedia{}, fmt.Errorf("mediagen JSON: expected at most 1 video transcript, but found %v",
-			len(videoItem.Transcript))
-	}
-	duration, err := strconv.ParseInt(rendition.Duration, 10, 32)
-	if err != nil {
-		return highlevelMedia{}, fmt.Errorf("parsing stream duration: %w", err)
-	}
-
-	var res highlevelMedia
-	res.StreamMasterURL = rendition.Src
-	res.StreamMethod = rendition.Method
-	res.StreamDuration = int(duration)
-	res.StreamType = rendition.Type
-	res.HasCaptions = hasTranscript
-	if hasTranscript {
-		transcript := videoItem.Transcript[0]
-		res.CaptionLang = transcript.Srclang
-		res.CaptionLabel = transcript.Label
-		for _, t := range transcript.Typographic {
-			res.Captions = append(res.Captions, highlevelMediaCaption{
-				Format: t.Format,
-				URL:    t.Src,
-			})
-		}
-	}
-	return res, nil
 }
 
 type HLSFormat struct {
@@ -283,21 +206,49 @@ type HLSFormat struct {
 	Width            uint
 	Height           uint
 	Bandwidth        uint
-	URL              string
+	URI              string
+}
+
+type HLSMaster struct {
+	AudioURI     string
+	SubsURI      string
+	VideoFormats []HLSFormat
 }
 
 // Formats are returned sorted from best to worst
-func getHLSFormats(ctx context.Context, hlsMasterURL string) ([]HLSFormat, error) {
-	body, err := httputils.GetBodyWithContext(ctx, hlsMasterURL)
+func parseMasterM3U8(ctx context.Context, url string) (HLSMaster, error) {
+	body, err := httputils.GetBodyWithContext(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("get master HLS playlist: %w", err)
+		return HLSMaster{}, fmt.Errorf("get master HLS playlist: %w", err)
 	}
 	lines := strings.Split(string(body), "\n")
 
+	var res HLSMaster
 	var format HLSFormat
-	var formats []HLSFormat
 	for _, line := range lines {
-		if streamInfoStr, found := cutPrefix(line, "#EXT-X-STREAM-INF:"); found {
+		if mediaInfoStr, found := cutPrefix(line, "#EXT-X-MEDIA:"); found {
+			var mediaInfo struct {
+				Type       string
+				GroupID    string
+				Name       string
+				URI        string
+				AutoSelect string
+			}
+
+			err := getExtM3UInfo(mediaInfoStr, &mediaInfo)
+			if err != nil {
+				return HLSMaster{}, fmt.Errorf("parse EXTM3U: %w", err)
+			}
+
+			if mediaInfo.AutoSelect == "YES" {
+				switch mediaInfo.Type {
+				case "AUDIO":
+					res.AudioURI = mediaInfo.URI
+				case "SUBTITLES":
+					res.SubsURI = mediaInfo.URI
+				}
+			}
+		} else if streamInfoStr, found := cutPrefix(line, "#EXT-X-STREAM-INF:"); found {
 			var streamInfo struct {
 				AverageBandwidth int
 				FrameRate        float32
@@ -308,7 +259,7 @@ func getHLSFormats(ctx context.Context, hlsMasterURL string) ([]HLSFormat, error
 
 			err := getExtM3UInfo(streamInfoStr, &streamInfo)
 			if err != nil {
-				return nil, fmt.Errorf("getExtM3UInfo: %w", err)
+				return HLSMaster{}, fmt.Errorf("parse EXTM3U: %w", err)
 			}
 
 			format.AverageBandwidth = uint(streamInfo.AverageBandwidth)
@@ -317,39 +268,38 @@ func getHLSFormats(ctx context.Context, hlsMasterURL string) ([]HLSFormat, error
 			{
 				sp := strings.SplitN(streamInfo.Resolution, "x", 2)
 				if len(sp) != 2 {
-					return nil, errors.New("invalid resolution format in EXT-X-STREAM-INF")
+					return HLSMaster{}, errors.New("invalid resolution format in EXT-X-STREAM-INF")
 				}
 				w, err := strconv.ParseUint(sp[0], 10, 32)
 				if err != nil {
-					return nil, fmt.Errorf("parse resolution width: %w", err)
+					return HLSMaster{}, fmt.Errorf("parse resolution width: %w", err)
 				}
 				format.Width = uint(w)
 				h, err := strconv.ParseUint(sp[1], 10, 32)
 				if err != nil {
-					return nil, fmt.Errorf("parse resolution height: %w", err)
+					return HLSMaster{}, fmt.Errorf("parse resolution height: %w", err)
 				}
 				format.Height = uint(h)
 			}
 			format.Bandwidth = uint(streamInfo.Bandwidth)
-		} else if strings.HasPrefix(line, "https://") {
-			format.URL = line
-			formats = append(formats, format)
+		} else if line != "" && !strings.HasPrefix(line, "#") {
+			format.URI = line
+			res.VideoFormats = append(res.VideoFormats, format)
 			format = HLSFormat{}
 		}
 	}
 
 	// Sort by bandwidth (best first)
-	sort.Slice(formats, func(i, j int) bool {
-		return formats[j].Bandwidth < formats[i].Bandwidth
+	sort.Slice(res.VideoFormats, func(i, j int) bool {
+		return res.VideoFormats[j].Bandwidth < res.VideoFormats[i].Bandwidth
 	})
 
-	return formats, nil
+	return res, nil
 }
 
 type HLSStreamKey struct {
 	Method string
 	Key    []byte
-	IV     []byte
 }
 
 type HLSStreamSegment struct {
@@ -358,12 +308,12 @@ type HLSStreamSegment struct {
 }
 
 type HLSStream struct {
-	Key      HLSStreamKey
+	Key      *HLSStreamKey
 	Segments []HLSStreamSegment
 }
 
-func getHLSStream(ctx context.Context, hlsURL string) (HLSStream, error) {
-	body, err := httputils.GetBodyWithContext(ctx, hlsURL)
+func getHLSStream(ctx context.Context, uriPrefix, hlsURI string) (HLSStream, error) {
+	body, err := httputils.GetBodyWithContext(ctx, uriPrefix+hlsURI)
 	if err != nil {
 		return HLSStream{}, fmt.Errorf("get stream HLS playlist: %w", err)
 	}
@@ -372,7 +322,6 @@ func getHLSStream(ctx context.Context, hlsURL string) (HLSStream, error) {
 	var keyInfo struct {
 		Method string
 		URI    string
-		IV     []byte
 	}
 
 	var duration float64 = 0
@@ -386,8 +335,16 @@ func getHLSStream(ctx context.Context, hlsURL string) (HLSStream, error) {
 				return HLSStream{}, fmt.Errorf("getExtM3UInfo: %w", err)
 			}
 
+			// Each URI has <uriPrefix>/<the same starting sequence>/<filename>.
+			// This starting sequence isn't included with the key, so we get it here.
+			keyPfx, _, found := strings.Cut(hlsURI, "/")
+			if !found {
+				return HLSStream{}, fmt.Errorf("malformed HLS URI: missing '/': '%v'", hlsURI)
+			}
+			keyPfx += "/"
+
 			// Download key
-			key, err = httputils.GetBodyWithContext(ctx, keyInfo.URI)
+			key, err = httputils.GetBodyWithContext(ctx, uriPrefix+keyPfx+keyInfo.URI)
 			if err != nil {
 				return HLSStream{}, fmt.Errorf("get decryption key: %w", err)
 			}
@@ -413,190 +370,137 @@ func getHLSStream(ctx context.Context, hlsURL string) (HLSStream, error) {
 			duration = 0
 		}
 	}
-	return HLSStream{
-		Key: HLSStreamKey{
+
+	res := HLSStream{
+		Segments: segments,
+	}
+
+	if key != nil {
+		res.Key = &HLSStreamKey{
 			Method: keyInfo.Method,
 			Key:    key,
-			IV:     keyInfo.IV,
-		},
-		Segments: segments,
+		}
+	}
+
+	return res, nil
+}
+
+type EpisodeStream struct {
+	Video HLSStream
+	Audio HLSStream
+	Subs  HLSStream
+}
+
+func GetEpisodeStream(ctx context.Context, e Episode, selectFormat func([]HLSFormat) (HLSFormat, error)) (EpisodeStream, error) {
+	mediaMasterURL, err := getMediaMasterURL(ctx, e.URL)
+	if err != nil {
+		return EpisodeStream{}, fmt.Errorf("getMediaMasterURL: %w", err)
+	}
+
+	uriPrefix, err := uriPrefixFromMasterURL(mediaMasterURL)
+	if err != nil {
+		return EpisodeStream{}, err
+	}
+
+	hlsMaster, err := parseMasterM3U8(ctx, mediaMasterURL)
+	if err != nil {
+		return EpisodeStream{}, fmt.Errorf("parseMasterM3U8: %w", err)
+	}
+
+	videoFormat, err := selectFormat(hlsMaster.VideoFormats)
+	if err != nil {
+		return EpisodeStream{}, fmt.Errorf("selectFormat: %w", err)
+	}
+
+	videoStream, err := getHLSStream(ctx, uriPrefix, videoFormat.URI)
+	if err != nil {
+		return EpisodeStream{}, fmt.Errorf("getHLSStream: %w", err)
+	}
+	if videoStream.Key == nil || videoStream.Key.Method != "AES-128" {
+		return EpisodeStream{}, fmt.Errorf("unable to decrypt '%v'; only AES-128 decryption is supported", videoStream.Key.Method)
+	}
+
+	audioStream, err := getHLSStream(ctx, uriPrefix, hlsMaster.AudioURI)
+	if err != nil {
+		return EpisodeStream{}, fmt.Errorf("getHLSStream: %w", err)
+	}
+	if audioStream.Key == nil || audioStream.Key.Method != "AES-128" {
+		return EpisodeStream{}, fmt.Errorf("unable to decrypt '%v'; only AES-128 decryption is supported", videoStream.Key.Method)
+	}
+
+	subsStream, err := getHLSStream(ctx, uriPrefix, hlsMaster.SubsURI)
+	if err != nil {
+		return EpisodeStream{}, fmt.Errorf("getHLSStream: %w", err)
+	}
+	if subsStream.Key != nil {
+		return EpisodeStream{}, fmt.Errorf("expected subs to be unencrypted, but found '%v' key", subsStream.Key.Method)
+	}
+
+	return EpisodeStream{
+		Video: videoStream,
+		Audio: audioStream,
+		Subs:  subsStream,
 	}, nil
 }
 
-func ConvertTSToMP4(tsInput io.Reader, mp4Output io.WriteSeeker) error {
-	muxer, err := mp4.CreateMp4Muxer(mp4Output)
-	if err != nil {
-		return fmt.Errorf("create mp4 muxer: %w", err)
-	}
+// Download order: video, audio, subs. Does not interleave different media types.
+func DownloadEpisodeStream(
+	ctx context.Context,
+	stream EpisodeStream,
+	startSegment int,
+	totalSegmentIdxCallback func(segmentIdx int),
+	videoCallback func(data []byte, videoSegmentIdx int) error,
+	audioCallback func(data []byte, audioSegmentIdx int) error,
+	subsCallback func(data []byte, subsSegmentIdx int) error,
+) error {
+	segmentIndex := startSegment
+	segmentOffset := 0
 
-	var writeErr error
+	totalSegmentIdxCallback(segmentIndex)
 
-	// https://github.com/yapingcat/gomedia/blob/main/example/example_convert_ts_to_mp4.go
-	hasAudio := false
-	hasVideo := false
-	var atid uint32 = 0
-	var vtid uint32 = 0
-	demuxer := mpeg2.NewTSDemuxer()
-	demuxer.OnFrame = func(cid mpeg2.TS_STREAM_TYPE, frame []byte, pts uint64, dts uint64) {
-		if cid == mpeg2.TS_STREAM_H264 {
-			if !hasVideo {
-				vtid = muxer.AddVideoTrack(mp4.MP4_CODEC_H264)
-				hasVideo = true
-			}
-			err := muxer.Write(vtid, frame, uint64(pts), uint64(dts))
-			if err != nil {
-				writeErr = err
-			}
-		} else if cid == mpeg2.TS_STREAM_AAC {
-			if !hasAudio {
-				atid = muxer.AddAudioTrack(mp4.MP4_CODEC_AAC)
-				hasAudio = true
-			}
-			err = muxer.Write(atid, frame, uint64(pts), uint64(dts))
-			if err != nil {
-				writeErr = err
-			}
-		} else if cid == mpeg2.TS_STREAM_AUDIO_MPEG1 || cid == mpeg2.TS_STREAM_AUDIO_MPEG2 {
-			if !hasAudio {
-				atid = muxer.AddAudioTrack(mp4.MP4_CODEC_MP3)
-				hasAudio = true
-			}
-			err := muxer.Write(atid, frame, uint64(pts), uint64(dts))
-			if err != nil {
-				writeErr = err
-			}
+	for segmentIndex-segmentOffset < len(stream.Video.Segments) {
+		relSegIdx := segmentIndex - segmentOffset
+		seg := stream.Video.Segments[relSegIdx]
+		data, err := downloadAndDecryptAES128Segment(ctx, seg.URL, stream.Video.Key.Key, relSegIdx)
+		if err != nil {
+			return fmt.Errorf("downloadAndDecryptAES128Segment (video): %w", err)
 		}
-	}
-
-	if err := demuxer.Input(tsInput); err != nil {
-		if errors.Is(err, io.ErrUnexpectedEOF) {
-			// File is incomplete, ignore
-		} else {
-			return fmt.Errorf("MPEG-TS demuxer: %w", err)
+		if err := videoCallback(data, relSegIdx); err != nil {
+			return fmt.Errorf("videoCallback: %w", err)
 		}
+		segmentIndex++
+		totalSegmentIdxCallback(segmentIndex)
 	}
+	segmentOffset += len(stream.Video.Segments)
 
-	muxer.WriteTrailer()
+	for segmentIndex-segmentOffset < len(stream.Audio.Segments) {
+		relSegIdx := segmentIndex - segmentOffset
+		seg := stream.Audio.Segments[relSegIdx]
+		data, err := downloadAndDecryptAES128Segment(ctx, seg.URL, stream.Audio.Key.Key, relSegIdx)
+		if err != nil {
+			return fmt.Errorf("downloadAndDecryptAES128Segment (audio): %w", err)
+		}
+		if err := audioCallback(data, relSegIdx); err != nil {
+			return fmt.Errorf("audioCallback: %w", err)
+		}
+		segmentIndex++
+		totalSegmentIdxCallback(segmentIndex)
+	}
+	segmentOffset += len(stream.Audio.Segments)
 
-	if writeErr != nil {
-		// Currently only propagates last error
-		return fmt.Errorf("mp4 muxer: %w", err)
+	for segmentIndex-segmentOffset < len(stream.Subs.Segments) {
+		relSegIdx := segmentIndex - segmentOffset
+		seg := stream.Subs.Segments[relSegIdx]
+		data, err := httputils.GetBodyWithContext(ctx, seg.URL)
+		if err != nil {
+			return fmt.Errorf("download subtitle segment: %w", err)
+		}
+		if err := subsCallback(data, relSegIdx); err != nil {
+			return fmt.Errorf("subsCallback: %w", err)
+		}
+		segmentIndex++
+		totalSegmentIdxCallback(segmentIndex)
 	}
 
 	return nil
-}
-
-type EpisodePart struct {
-	Stream          HLSStream
-	VTTSubtitleURLs []string
-}
-
-func GetEpisodeParts(ctx context.Context, e Episode, selectFormat func([]HLSFormat) (HLSFormat, error)) ([]EpisodePart, error) {
-	mediaGenURLs, err := getMediaGenURLs(ctx, e.MGID, e.URL)
-	if err != nil {
-		return nil, fmt.Errorf("getMediaGenURLs: %w", err)
-	}
-
-	var parts []EpisodePart
-	for _, mediaGenURL := range mediaGenURLs {
-		highlevelMedia, err := getHighlevelMedia(ctx, mediaGenURL)
-		if err != nil {
-			return nil, fmt.Errorf("getHighlevelMedia: %w", err)
-		}
-
-		if highlevelMedia.StreamMethod != "hls" {
-			return nil, fmt.Errorf("expected HLS stream, but got '%v' instead", highlevelMedia.StreamMethod)
-		}
-
-		var vttSubtitleURLs []string
-		for _, v := range highlevelMedia.Captions {
-			if v.Format == "vtt" {
-				vttSubtitleURLs = append(vttSubtitleURLs, v.URL)
-			}
-		}
-
-		hlsFormats, err := getHLSFormats(ctx, highlevelMedia.StreamMasterURL)
-		if err != nil {
-			return nil, fmt.Errorf("getHLSFormats: %w", err)
-		}
-
-		format, err := selectFormat(hlsFormats)
-		if err != nil {
-			return nil, fmt.Errorf("selectFormat: %w", err)
-		}
-
-		stream, err := getHLSStream(ctx, format.URL)
-		if err != nil {
-			return nil, fmt.Errorf("getHLSStream: %w", err)
-		}
-
-		if stream.Key.Method != "AES-128" {
-			return nil, fmt.Errorf("unable to decrypt '%v'; only AES-128 decryption is supported", stream.Key.Method)
-		}
-
-		parts = append(parts, EpisodePart{
-			Stream:          stream,
-			VTTSubtitleURLs: vttSubtitleURLs,
-		})
-	}
-
-	return parts, nil
-}
-
-func GetPartsTotalHLSSegments(parts []EpisodePart) int {
-	n := 0
-	for _, v := range parts {
-		n += len(v.Stream.Segments)
-	}
-	return n
-}
-
-func GetEpisodeTSVideo(ctx context.Context, parts []EpisodePart, startSegment int, segmentCallback func([]byte) error) error {
-	segmentIndex := 0
-	for _, part := range parts {
-		for _, seg := range part.Stream.Segments {
-			if segmentIndex >= startSegment {
-				data, err := downloadAndDecryptAES128Segment(ctx, seg.URL, part.Stream.Key.Key, part.Stream.Key.IV)
-				if err != nil {
-					return fmt.Errorf("downloadAndDecryptAES128Segment: %w", err)
-				}
-				if err := segmentCallback(data); err != nil {
-					return fmt.Errorf("segmentCallback: %w", err)
-				}
-			}
-			segmentIndex++
-		}
-	}
-	return nil
-}
-
-func GetEpisodeVTTSubtitles(ctx context.Context, parts []EpisodePart) (subs []byte, found bool, err error) {
-	vttParts := make([][]byte, 0, len(parts))
-	durations := make([]float64, 0, len(parts))
-	for i, part := range parts {
-		if len(part.VTTSubtitleURLs) != 1 {
-			if len(part.VTTSubtitleURLs) == 0 {
-				return []byte{}, false, nil
-			}
-			return nil, false, fmt.Errorf("part %v: expected at most 1 subtitle track, but found %v", i, len(part.VTTSubtitleURLs))
-		}
-
-		vttPart, err := httputils.GetBodyWithContext(ctx, part.VTTSubtitleURLs[0])
-		if err != nil {
-			return nil, false, err
-		}
-		vttParts = append(vttParts, vttPart)
-
-		var duration float64 = 0
-		for _, seg := range part.Stream.Segments {
-			duration += seg.Duration
-		}
-		durations = append(durations, duration)
-	}
-
-	res, err := mergeVTTSubtitles(vttParts, durations)
-	if err != nil {
-		return nil, false, fmt.Errorf("mergeVTTSubtitles: %w", err)
-	}
-	return res, true, nil
 }

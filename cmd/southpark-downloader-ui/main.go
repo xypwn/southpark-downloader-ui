@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/url"
+	"runtime"
 	"strconv"
 
 	/*"os"
@@ -45,14 +46,19 @@ func main() {
 		)
 		copyBtn.Importance = widget.LowImportance
 		issueBtn := widget.NewButtonWithIcon(
-			"Automatically file a bug report on GitHub",
+			"File a bug report on GitHub",
 			theme.MailComposeIcon(),
 			func() {
 				issueURL, _ := url.Parse("https://github.com/xypwn/southpark-downloader-ui/issues/new?labels=bug&" +
-					"title=" + url.QueryEscape("Internal Error Bug Report [Automatically Created via App]") + "&" +
+					"title=" + url.QueryEscape("[TITLE]") + "&" +
 					"body=" + url.QueryEscape("Version: "+app.Metadata().Version+
 					" build "+strconv.Itoa(app.Metadata().Build)+"\n"+
-					"Error: "+err.Error()),
+					"Error: "+err.Error()+"\n"+
+					"OS: "+runtime.GOOS+" "+runtime.GOARCH+"\n"+
+					"Region: [YOUR REGION]\n"+
+					"Description: [DESCRIBE THE ISSUE]\n\n"+
+					"- [ ] I understand that this issue will be deleted if I forget to fill out any of the fields surrounded by brackets (\"[ ]\"), including the title. Place an \"x\" into the brackets at the beginning of this line to confirm.\n\n"+
+					"(Created via app)"),
 				)
 				app.OpenURL(issueURL)
 			},
@@ -90,7 +96,7 @@ func main() {
 
 	dls := logic.NewDownloads(cfgStor.NewClient(), onError)
 
-	mobile := false
+	mobile := fyne.CurrentDevice().IsMobile()
 
 	downloads := gui.NewDownloads(dls, mobile)
 
@@ -129,7 +135,9 @@ func main() {
 
 	window.SetContent(appTabs)
 
-	window.Resize(fyne.NewSize(800, 450))
+	if !mobile {
+		window.Resize(fyne.NewSize(800, 450))
+	}
 
 	window.ShowAndRun()
 }

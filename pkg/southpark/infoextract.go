@@ -246,7 +246,37 @@ type websiteData struct {
 			Type  string           `json:"type"`
 			Props websiteDataProps `json:"props"`
 		} `json:"children"`
+		HandleTVEAuthRedirection *struct {
+			VideoDetail struct {
+				VideoServiceURL string `json:"videoServiceUrl"`
+			} `json:"videoDetail"`
+		} `json:"handleTVEAuthRedirection"`
 	} `json:"children"`
+}
+
+func getWebsiteDataFromURL(ctx context.Context, url string) (websiteData, error) {
+	body, err := httputils.GetBodyWithContext(ctx, url)
+	if err != nil {
+		return websiteData{}, err
+	}
+
+	return getWebsiteDataFromBody(body)
+}
+
+func getWebsiteDataFromBody(body []byte) (websiteData, error) {
+	re := regexp.MustCompile("window.__DATA__\\s*=\\s*({.*});\n")
+	match := re.FindSubmatch(body)
+	if match == nil || len(match) != 2 {
+		return websiteData{}, errors.New("unable to find JSON data in webpage")
+	}
+	dataJSON := match[1]
+
+	var data websiteData
+	err := json.Unmarshal(dataJSON, &data)
+	if err != nil {
+		return websiteData{}, fmt.Errorf("parse data JSON: %w", err)
+	}
+	return data, nil
 }
 
 func getWebsiteDataPropsFromURL(ctx context.Context, url string, containerType string, propsType string) (websiteDataProps, error) {
@@ -259,17 +289,9 @@ func getWebsiteDataPropsFromURL(ctx context.Context, url string, containerType s
 }
 
 func getWebsiteDataPropsFromBody(body []byte, containerType string, propsType string) (websiteDataProps, error) {
-	re := regexp.MustCompile("window.__DATA__\\s*=\\s*({.*});\n")
-	match := re.FindSubmatch(body)
-	if match == nil || len(match) != 2 {
-		return websiteDataProps{}, errors.New("unable to find JSON data in webpage")
-	}
-	dataJSON := match[1]
-
-	var data websiteData
-	err := json.Unmarshal(dataJSON, &data)
+	data, err := getWebsiteDataFromBody(body)
 	if err != nil {
-		return websiteDataProps{}, fmt.Errorf("parse data JSON: %w", err)
+		return websiteDataProps{}, err
 	}
 
 	for _, v := range data.Children {
@@ -323,6 +345,9 @@ func GetSeasons(ctx context.Context, regionInfo RegionInfo, language Language) (
 	}
 
 	body, err := httputils.GetBodyWithContext(ctx, anySeasonURL)
+	if err != nil {
+		return nil, "", fmt.Errorf("get base data: %w", err)
+	}
 
 	// Retrieve series MGID
 	{
