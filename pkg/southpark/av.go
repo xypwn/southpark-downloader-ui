@@ -69,7 +69,7 @@ func ConvertTSAndAACToMP4(tsInput io.Reader, aacInput io.Reader, mp4Output io.Wr
 				writeErr = err
 			}
 
-			for vpts > prevADTS {
+			for vdts > prevADTS {
 				if !hasAudio {
 					atid = muxer.AddAudioTrack(mp4.MP4_CODEC_AAC)
 					hasAudio = true
