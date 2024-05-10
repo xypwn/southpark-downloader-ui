@@ -8,6 +8,10 @@ on:
       - 'v*'
   pull_request:
 
+permissions:
+    contents: write
+    packages: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -21,7 +25,6 @@ jobs:
           cache: true
       - run: go install fyne.io/fyne/v2/cmd/fyne@latest
       - run: cd ./cmd/southpark-downloader-ui && fyne package --release
-      - run: ls ./cmd/southpark-downloader-ui .
       - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.exe southpark-downloader-ui-windows-amd64.exe
       - uses: actions/upload-artifact@v4
         with:
@@ -41,7 +44,6 @@ jobs:
       - run: sudo apt update && sudo apt install gcc libegl1-mesa-dev xorg-dev
       - run: go install fyne.io/fyne/v2/cmd/fyne@latest
       - run: cd ./cmd/southpark-downloader-ui && fyne package --release
-      - run: ls ./cmd/southpark-downloader-ui .
       - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.tar.xz southpark-downloader-ui-linux-amd64.tar.xz
       - uses: actions/upload-artifact@v4
         with:
@@ -60,7 +62,6 @@ jobs:
           cache: true
       - run: go install fyne.io/fyne/v2/cmd/fyne@latest
       - run: cd ./cmd/southpark-downloader-ui && fyne package --release
-      - run: ls ./cmd/southpark-downloader-ui .
       - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.app southpark-downloader-ui-macos-amd64.app
       - run: tar czf southpark-downloader-ui-macos-amd64.tar.gz southpark-downloader-ui-macos-amd64.app
       - uses: actions/upload-artifact@v4
@@ -70,7 +71,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-linux, build-macos]
     steps:
       - uses: actions/download-artifact@v4
         with:
