@@ -40,11 +40,11 @@ jobs:
       - run: sudo apt update && sudo apt install gcc libegl1-mesa-dev xorg-dev
       - run: go install fyne.io/fyne/v2/cmd/fyne@latest
       - run: cd ./cmd/southpark-downloader-ui && fyne package --release
-      - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui southpark-downloader-ui-linux-amd64
+      - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.tar.gz southpark-downloader-ui-linux-amd64.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: southpark-downloader-ui-linux-amd64
-          path: southpark-downloader-ui-linux-amd64
+          path: southpark-downloader-ui-linux-amd64.tar.gz
 
   build-macos:
     runs-on: macos-latest
@@ -58,11 +58,11 @@ jobs:
           cache: true
       - run: go install fyne.io/fyne/v2/cmd/fyne@latest
       - run: cd ./cmd/southpark-downloader-ui && fyne package --release
-      - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui southpark-downloader-ui-macos-amd64
+      - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.tar.gz southpark-downloader-ui-macos-amd64.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: southpark-downloader-ui-macos-amd64
-          path: southpark-downloader-ui-macos-amd64
+          path: southpark-downloader-ui-macos-amd64.tar.gz
 
   release:
     runs-on: ubuntu-latest
