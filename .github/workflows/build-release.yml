@@ -42,11 +42,11 @@ jobs:
       - run: go install fyne.io/fyne/v2/cmd/fyne@latest
       - run: cd ./cmd/southpark-downloader-ui && fyne package --release
       - run: ls ./cmd/southpark-downloader-ui .
-      - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.tar.gz southpark-downloader-ui-linux-amd64.tar.gz
+      - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.tar.xz southpark-downloader-ui-linux-amd64.tar.xz
       - uses: actions/upload-artifact@v4
         with:
           name: southpark-downloader-ui-linux-amd64
-          path: southpark-downloader-ui-linux-amd64.tar.gz
+          path: southpark-downloader-ui-linux-amd64.tar.xz
 
   build-macos:
     runs-on: macos-latest
@@ -61,7 +61,8 @@ jobs:
       - run: go install fyne.io/fyne/v2/cmd/fyne@latest
       - run: cd ./cmd/southpark-downloader-ui && fyne package --release
       - run: ls ./cmd/southpark-downloader-ui .
-      - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.tar.gz southpark-downloader-ui-macos-amd64.tar.gz
+      - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.app southpark-downloader-ui-macos-amd64.app
+      - run: tar czf southpark-downloader-ui-macos-amd64.tar.gz southpark-downloader-ui-macos-amd64.app
       - uses: actions/upload-artifact@v4
         with:
           name: southpark-downloader-ui-macos-amd64
@@ -105,7 +106,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create-new-release.outputs.upload_url }}
-          asset_path: ./southpark-downloader-ui-linux-amd64.tar.gz
+          asset_path: ./southpark-downloader-ui-linux-amd64.tar.xz
           asset_name: southpark-downloader-ui-linux-amd64
           asset_content_type: application/octet-stream
 
