@@ -99,7 +99,7 @@ jobs:
         with:
           upload_url: ${{ steps.create-new-release.outputs.upload_url }}
           asset_path: ./southpark-downloader-ui-windows-amd64.exe
-          asset_name: southpark-downloader-ui-windows-amd64
+          asset_name: southpark-downloader-ui-windows-amd64.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
       - uses: actions/upload-release-asset@v1
@@ -108,8 +108,8 @@ jobs:
         with:
           upload_url: ${{ steps.create-new-release.outputs.upload_url }}
           asset_path: ./southpark-downloader-ui-linux-amd64.tar.xz
-          asset_name: southpark-downloader-ui-linux-amd64
-          asset_content_type: application/octet-stream
+          asset_name: southpark-downloader-ui-linux-amd64.tar.xz
+          asset_content_type: application/x-gtar
 
       - uses: actions/upload-release-asset@v1
         env:
@@ -117,5 +117,5 @@ jobs:
         with:
           upload_url: ${{ steps.create-new-release.outputs.upload_url }}
           asset_path: ./southpark-downloader-ui-macos-amd64.tar.gz
-          asset_name: southpark-downloader-ui-macos-amd64
-          asset_content_type: application/octet-stream
+          asset_name: southpark-downloader-ui-macos-amd64.tar.gz
+          asset_content_type: application/x-gtar
