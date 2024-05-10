@@ -1,5 +1,5 @@
 [Details]
   Icon = "Icon.png"
-  Name = "Southpark Downloader"
+  Name = "southpark-downloader-ui"
   ID = "org.nobrain.southparkdownloaderui"
-  Build = 227
+  Build = 229

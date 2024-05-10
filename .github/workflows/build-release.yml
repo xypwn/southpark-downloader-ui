@@ -1,0 +1,121 @@
+name: build
+
+on:
+  push:
+    branches:
+      - 'main'
+    tags:
+      - 'v*'
+  pull_request:
+
+permissions:
+    contents: write
+    packages: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.20.0
+          cache: true
+      - run: go install fyne.io/fyne/v2/cmd/fyne@latest
+      - run: cd ./cmd/southpark-downloader-ui && fyne package --release
+      - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.exe southpark-downloader-ui-windows-amd64.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: southpark-downloader-ui-windows-amd64
+          path: southpark-downloader-ui-windows-amd64.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.20.0
+          cache: true
+      - run: sudo apt update && sudo apt install gcc libegl1-mesa-dev xorg-dev
+      - run: go install fyne.io/fyne/v2/cmd/fyne@latest
+      - run: cd ./cmd/southpark-downloader-ui && fyne package --release
+      - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.tar.xz southpark-downloader-ui-linux-amd64.tar.xz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: southpark-downloader-ui-linux-amd64
+          path: southpark-downloader-ui-linux-amd64.tar.xz
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.20.0
+          cache: true
+      - run: go install fyne.io/fyne/v2/cmd/fyne@latest
+      - run: cd ./cmd/southpark-downloader-ui && fyne package --release
+      - run: mv ./cmd/southpark-downloader-ui/southpark-downloader-ui.app southpark-downloader-ui-macos-amd64.app
+      - run: tar czf southpark-downloader-ui-macos-amd64.tar.gz southpark-downloader-ui-macos-amd64.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: southpark-downloader-ui-macos-amd64
+          path: southpark-downloader-ui-macos-amd64.tar.gz
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux, build-macos]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: southpark-downloader-ui-linux-amd64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: southpark-downloader-ui-windows-amd64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: southpark-downloader-ui-macos-amd64
+
+      - uses: actions/create-release@v1
+        id: create-new-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.run_number }}
+          release_name: Release ${{ github.run_number }}
+
+      - uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-new-release.outputs.upload_url }}
+          asset_path: ./southpark-downloader-ui-windows-amd64.exe
+          asset_name: southpark-downloader-ui-windows-amd64.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
+
+      - uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-new-release.outputs.upload_url }}
+          asset_path: ./southpark-downloader-ui-linux-amd64.tar.xz
+          asset_name: southpark-downloader-ui-linux-amd64.tar.xz
+          asset_content_type: application/x-gtar
+
+      - uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-new-release.outputs.upload_url }}
+          asset_path: ./southpark-downloader-ui-macos-amd64.tar.gz
+          asset_name: southpark-downloader-ui-macos-amd64.tar.gz
+          asset_content_type: application/x-gtar
