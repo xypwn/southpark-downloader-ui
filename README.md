@@ -12,14 +12,16 @@ If you have any request or criticism in particular, feel free to open an issue (
 - [MacOS (Intel)](https://github.com/xypwn/southpark-downloader-ui/releases/latest/download/southpark-downloader-ui-macos-amd64.tar.gz)
 
 ### Windows
-Just extract the zip and double-click the .exe :)
+Open the .exe file.
+
+If it complains about the app being unknown to Microsoft, you can click "More info" -> "Run anyway". The warning should no longer appear after that.
 
 ### Linux
 Extract the archive.
 
 Open a terminal in the extracted directory that contains the `Makefile`.
 
-Run `sudo make install` (system-wide) or `sudo make user-install` (local).
+Run `sudo make install` (system-wide) or `make user-install` (local).
 
 ### MacOS
 Extract the archive.
