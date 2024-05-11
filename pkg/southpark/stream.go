@@ -388,7 +388,7 @@ func getHLSStream(ctx context.Context, uriPrefix, hlsURI string) (HLSStream, err
 type EpisodeStream struct {
 	Video HLSStream
 	Audio HLSStream
-	Subs  HLSStream
+	Subs  HLSStream // subs are not available if len(Subs.Segments) == 0
 }
 
 func GetEpisodeStream(ctx context.Context, e Episode, selectFormat func([]HLSFormat) (HLSFormat, error)) (EpisodeStream, error) {
@@ -407,6 +407,10 @@ func GetEpisodeStream(ctx context.Context, e Episode, selectFormat func([]HLSFor
 		return EpisodeStream{}, fmt.Errorf("parseMasterM3U8: %w", err)
 	}
 
+	if len(hlsMaster.VideoFormats) == 0 || hlsMaster.AudioURI == "" {
+		return EpisodeStream{}, fmt.Errorf("master M3U8 does not contain a video or audio track")
+	}
+
 	videoFormat, err := selectFormat(hlsMaster.VideoFormats)
 	if err != nil {
 		return EpisodeStream{}, fmt.Errorf("selectFormat: %w", err)
@@ -414,33 +418,37 @@ func GetEpisodeStream(ctx context.Context, e Episode, selectFormat func([]HLSFor
 
 	videoStream, err := getHLSStream(ctx, uriPrefix, videoFormat.URI)
 	if err != nil {
-		return EpisodeStream{}, fmt.Errorf("getHLSStream: %w", err)
+		return EpisodeStream{}, fmt.Errorf("get video HLS stream: %w", err)
 	}
 	if videoStream.Key == nil || videoStream.Key.Method != "AES-128" {
-		return EpisodeStream{}, fmt.Errorf("unable to decrypt '%v'; only AES-128 decryption is supported", videoStream.Key.Method)
+		return EpisodeStream{}, fmt.Errorf("unable to decrypt video with method '%v', only AES-128 decryption is supported", videoStream.Key.Method)
 	}
 
 	audioStream, err := getHLSStream(ctx, uriPrefix, hlsMaster.AudioURI)
 	if err != nil {
-		return EpisodeStream{}, fmt.Errorf("getHLSStream: %w", err)
+		return EpisodeStream{}, fmt.Errorf("get audio HLS stream: %w", err)
 	}
 	if audioStream.Key == nil || audioStream.Key.Method != "AES-128" {
-		return EpisodeStream{}, fmt.Errorf("unable to decrypt '%v'; only AES-128 decryption is supported", videoStream.Key.Method)
+		return EpisodeStream{}, fmt.Errorf("unable to decrypt audio with method '%v', only AES-128 decryption is supported", videoStream.Key.Method)
 	}
 
-	subsStream, err := getHLSStream(ctx, uriPrefix, hlsMaster.SubsURI)
-	if err != nil {
-		return EpisodeStream{}, fmt.Errorf("getHLSStream: %w", err)
-	}
-	if subsStream.Key != nil {
-		return EpisodeStream{}, fmt.Errorf("expected subs to be unencrypted, but found '%v' key", subsStream.Key.Method)
-	}
-
-	return EpisodeStream{
+	res := EpisodeStream{
 		Video: videoStream,
 		Audio: audioStream,
-		Subs:  subsStream,
-	}, nil
+	}
+
+	if hlsMaster.SubsURI != "" {
+		subsStream, err := getHLSStream(ctx, uriPrefix, hlsMaster.SubsURI)
+		if err != nil {
+			return EpisodeStream{}, fmt.Errorf("get subtitle HLS stream: %w", err)
+		}
+		if subsStream.Key != nil {
+			return EpisodeStream{}, fmt.Errorf("expected subs to be unencrypted, but found '%v' key", subsStream.Key.Method)
+		}
+		res.Subs = subsStream
+	}
+
+	return res, nil
 }
 
 // Download order: video, audio, subs. Does not interleave different media types.
