@@ -174,22 +174,27 @@ func (d *Downloader) Do() error {
 		}
 	}
 
-	if d.outputSubtitlePath != "" && len(stream.Subs.Segments) > 0 {
+	if d.outputSubtitlePath != "" {
 		var out bytes.Buffer
-		startSeg := len(stream.Video.Segments) + len(stream.Audio.Segments)
-		endSeg := len(stream.Video.Segments) + len(stream.Audio.Segments) + len(stream.Subs.Segments)
-		for i := startSeg; i < endSeg; i++ {
-			data, err := os.ReadFile(getSegFileName(i))
-			if err != nil {
-				return fmt.Errorf("read subs fragment: %w", err)
-			}
-			if i != startSeg {
+
+		if _, err := out.WriteString("WEBVTT\r\n\r\n"); err != nil {
+			return fmt.Errorf("write subs: %w", err)
+		}
+
+		if len(stream.Subs.Segments) > 0 {
+			startSeg := len(stream.Video.Segments) + len(stream.Audio.Segments)
+			endSeg := len(stream.Video.Segments) + len(stream.Audio.Segments) + len(stream.Subs.Segments)
+			for i := startSeg; i < endSeg; i++ {
+				data, err := os.ReadFile(getSegFileName(i))
+				if err != nil {
+					return fmt.Errorf("read subs fragment: %w", err)
+				}
 				data = bytes.TrimPrefix(data, []byte("WEBVTT\r\n\r\n"))
+				if _, err := out.Write(data); err != nil {
+					return fmt.Errorf("write subs: %w", err)
+				}
+				d.OnStatusChanged(DownloaderStatusPostprocessingSubtitles, float64(i)/float64(endSeg))
 			}
-			if _, err := out.Write(data); err != nil {
-				return fmt.Errorf("write subs: %w", err)
-			}
-			d.OnStatusChanged(DownloaderStatusPostprocessingSubtitles, float64(i)/float64(endSeg))
 		}
 
 		if err := os.WriteFile(d.outputSubtitlePath, out.Bytes(), 0666); err != nil {
