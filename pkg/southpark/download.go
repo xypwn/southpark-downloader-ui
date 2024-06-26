@@ -4,11 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path"
-
-	"github.com/xypwn/southpark-downloader-ui/pkg/ioutils"
 )
 
 type DownloaderStatus int
@@ -137,40 +134,27 @@ func (d *Downloader) Do() error {
 		}
 		defer outputFileMP4.Close()
 
-		segReader := func(startSeg, endSeg int, onError func(error)) io.Reader {
-			baseReader, w := io.Pipe()
-			r := ioutils.NewCtxReader(d.ctx, baseReader)
-
-			go func() {
-				for i := startSeg; i < endSeg; i++ {
-					data, err := os.ReadFile(getSegFileName(i))
-					if err != nil {
-						onError(err)
-						break
-					}
-					w.Write(data)
-					d.OnStatusChanged(DownloaderStatusPostprocessingVideo, float64(i)/float64(endSeg))
-				}
-				w.Close()
-			}()
-
-			return r
+		var tsSegs []SegmentFile
+		for i, seg := range stream.Video.Segments {
+			tsSegs = append(tsSegs, SegmentFile{
+				Filename: getSegFileName(i),
+				Duration: seg.Duration,
+			})
 		}
 
-		var videoConvertErr error
-		tsReader := segReader(0, len(stream.Video.Segments), func(err error) { videoConvertErr = err })
+		var aacSegs []SegmentFile
+		for i, seg := range stream.Audio.Segments {
+			aacSegs = append(aacSegs, SegmentFile{
+				Filename: getSegFileName(len(stream.Video.Segments)+i),
+				Duration: seg.Duration,
+			})
+		}
 
-		var audioConvertErr error
-		aacReader := segReader(len(stream.Video.Segments), len(stream.Video.Segments)+len(stream.Audio.Segments), func(err error) { audioConvertErr = err })
 
-		if err := ConvertTSAndAACToMP4(tsReader, aacReader, outputFileMP4); err != nil {
+		if err := ConvertTSAndAACToMP4(tsSegs, aacSegs, outputFileMP4, func(progress float64) {
+			d.OnStatusChanged(DownloaderStatusPostprocessingVideo, progress)
+		}); err != nil {
 			return fmt.Errorf("convert MPEG-TS and AAC to MP4: %w", err)
-		}
-		if videoConvertErr != nil {
-			return fmt.Errorf("convert MPEG-TS to MP4: %w", videoConvertErr)
-		}
-		if audioConvertErr != nil {
-			return fmt.Errorf("convert AAC to MP4: %w", audioConvertErr)
 		}
 	}
 
