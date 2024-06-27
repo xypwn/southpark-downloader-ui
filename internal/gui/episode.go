@@ -82,17 +82,12 @@ func NewEpisode(
 			},
 			func(img *canvas.Image, err error) {
 				res.thumbnailProgress.Hide()
-				res.placeholderImage.Hide()
 
 				if err != nil {
-					errImg := canvas.NewImageFromResource(
-						theme.NewErrorThemedResource(
-							theme.ErrorIcon()))
-					errImg.FillMode = canvas.ImageFillContain
-					res.thumbnailImageCnt.Add(errImg)
-					onError(err)
 					return
 				}
+
+				res.placeholderImage.Hide()
 
 				res.mtx.Lock()
 				defer res.mtx.Unlock()
