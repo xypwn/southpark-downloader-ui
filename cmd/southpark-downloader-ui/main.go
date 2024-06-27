@@ -98,7 +98,7 @@ func main() {
 
 	mobile := fyne.CurrentDevice().IsMobile()
 
-	downloads := gui.NewDownloads(dls, mobile)
+	downloads := gui.NewDownloads(dls, mobile, cfgStor.NewClient())
 
 	logic.ConnectDownloadsToDownloadsInfo(ctx, dls, dlInfoStor, func(err error) {
 		panic(err)

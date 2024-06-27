@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/skratchdot/open-golang/open"
 	"github.com/xypwn/southpark-downloader-ui/internal/logic"
 	"github.com/xypwn/southpark-downloader-ui/pkg/data"
 
@@ -61,30 +62,35 @@ func downloadFilterFunc(dl *logic.Download, filter downloadFilter) bool {
 }
 
 type DownloadItem struct {
-	widget.BaseWidget
-	text   *widget.Label
-	status *widget.Label
-	reset  func()
-	obj    fyne.CanvasObject
-	mtx    sync.Mutex // for fields that aren't already thread-safe
+	widget. BaseWidget
+	text    *widget.Label
+	status  *widget.Label
+	playBtn *widget.Button
+	reset   func()
+	obj     fyne.CanvasObject
+	mtx     sync.Mutex // for fields that aren't already thread-safe
 }
 
 func NewDownloadItem() *DownloadItem {
 	res := &DownloadItem{
 		text:   widget.NewLabel("PLACEHOLDER"),
 		status: widget.NewLabel("PLACEHOLDER"),
+		playBtn: widget.NewButtonWithIcon("", theme.MediaPlayIcon(), func() {}),
 		reset:  func() {},
 	}
 	res.ExtendBaseWidget(res)
 
 	res.status.Alignment = fyne.TextAlignTrailing
+	res.playBtn.Hide()
 
 	res.obj = container.NewBorder(
 		nil,
 		nil,
 		res.text,
-		nil,
-		res.status,
+		container.NewHBox(
+			res.playBtn,
+			res.status,
+		),
 	)
 
 	return res
@@ -96,11 +102,19 @@ func (di *DownloadItem) Set(dl *logic.Download) {
 
 	di.reset()
 
+	di.playBtn.OnTapped = func() {
+		open.Start(dl.Params().OutputVideoPath)
+	}
 	ep := dl.Params().Episode
 	di.text.SetText(fmt.Sprintf("S%vE%v: %v", ep.SeasonNumber, ep.EpisodeNumber, ep.Title))
 	client := dl.ProgressBinding().NewClient()
 	statusChangedFunc := func(dp logic.DownloadProgress) {
 		di.status.SetText(dp.String())
+		if dp.Status == logic.DownloadStatusDone {
+			di.playBtn.Show()
+		} else {
+			di.playBtn.Hide()
+		}
 	}
 	client.AddListener(statusChangedFunc)
 	client.Examine(statusChangedFunc)
@@ -134,7 +148,7 @@ type Downloads struct {
 	obj    fyne.CanvasObject
 }
 
-func NewDownloads(dls *logic.Downloads, mobile bool) *Downloads {
+func NewDownloads(dls *logic.Downloads, mobile bool, cfgClient *data.Client[*logic.Config]) *Downloads {
 	res := &Downloads{
 		filter: data.NewListFilter(
 			dls.ListBinding,
@@ -460,7 +474,14 @@ func NewDownloads(dls *logic.Downloads, mobile bool) *Downloads {
 	}
 
 	res.obj = container.NewBorder(
-		topbar,
+		container.NewVBox(
+			topbar,
+			widget.NewButtonWithIcon("Open Download Folder", theme.FolderOpenIcon(), func() {
+				cfgClient.Examine(func(cfg *logic.Config) {
+					open.Start(cfg.DownloadPath)
+				})
+			}),
+		),
 		nil,
 		nil,
 		nil,

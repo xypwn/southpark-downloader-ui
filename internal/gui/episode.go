@@ -21,6 +21,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/skratchdot/open-golang/open"
 )
 
 type Episode struct {
@@ -230,8 +231,10 @@ func NewEpisode(
 					res.progressDiscrete.Hide()
 					res.progressInfinite.Hide()
 					res.progressText.Hide()
-					res.button.SetIcon(theme.ConfirmIcon())
-					res.button.OnTapped = func() {}
+					res.button.SetIcon(theme.MediaPlayIcon())
+					res.button.OnTapped = func() {
+						open.Start(dl.Params().OutputVideoPath)
+					}
 					return
 				}
 
