@@ -145,11 +145,10 @@ func (d *Downloader) Do() error {
 		var aacSegs []SegmentFile
 		for i, seg := range stream.Audio.Segments {
 			aacSegs = append(aacSegs, SegmentFile{
-				Filename: getSegFileName(len(stream.Video.Segments)+i),
+				Filename: getSegFileName(len(stream.Video.Segments) + i),
 				Duration: seg.Duration,
 			})
 		}
-
 
 		if err := ConvertTSAndAACToMP4(tsSegs, aacSegs, outputFileMP4, func(progress float64) {
 			d.OnStatusChanged(DownloaderStatusPostprocessingVideo, progress)

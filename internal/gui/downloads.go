@@ -62,7 +62,7 @@ func downloadFilterFunc(dl *logic.Download, filter downloadFilter) bool {
 }
 
 type DownloadItem struct {
-	widget. BaseWidget
+	widget.BaseWidget
 	text    *widget.Label
 	status  *widget.Label
 	playBtn *widget.Button
@@ -73,10 +73,10 @@ type DownloadItem struct {
 
 func NewDownloadItem() *DownloadItem {
 	res := &DownloadItem{
-		text:   widget.NewLabel("PLACEHOLDER"),
-		status: widget.NewLabel("PLACEHOLDER"),
+		text:    widget.NewLabel("PLACEHOLDER"),
+		status:  widget.NewLabel("PLACEHOLDER"),
 		playBtn: widget.NewButtonWithIcon("", theme.MediaPlayIcon(), func() {}),
-		reset:  func() {},
+		reset:   func() {},
 	}
 	res.ExtendBaseWidget(res)
 
