@@ -9,12 +9,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/xypwn/southpark-downloader-ui/pkg/httputils"
+	"github.com/xypwn/southpark-downloader-ui/pkg/ioutils"
 )
 
 // Processes strings like METHOD=AES-128,URI="https://.../",IV=0xDEADBEEF
@@ -499,10 +502,33 @@ func DownloadEpisodeStream(
 	for segmentIndex-segmentOffset < len(stream.Subs.Segments) {
 		relSegIdx := segmentIndex - segmentOffset
 		seg := stream.Subs.Segments[relSegIdx]
-		data, err := httputils.GetBodyWithContext(ctx, seg.URL)
-		if err != nil {
-			return fmt.Errorf("download subtitle segment: %w", err)
+
+		var data []byte
+		if err := func() error {
+			resp, err := httputils.GetWithContext(ctx, seg.URL)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode == http.StatusBadGateway {
+				// HACK: A 502 happens on S8E10 for a part of the subtitles.
+				// In that case, just write empty subs.
+			} else if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("HTTP error: %v", resp.Status)
+			} else {
+				var err error
+				data, err = io.ReadAll(ioutils.NewCtxReader(ctx, resp.Body))
+				if err != nil {
+					return fmt.Errorf("io.ReadAll: %w", err)
+				}
+			}
+
+			return nil
+		}(); err != nil {
+			return fmt.Errorf("download subtitle segment: get '%v': %w", seg.URL, err)
 		}
+
 		if err := subsCallback(data, relSegIdx); err != nil {
 			return fmt.Errorf("subsCallback: %w", err)
 		}
