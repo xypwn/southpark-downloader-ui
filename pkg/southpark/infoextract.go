@@ -205,6 +205,7 @@ type websiteDataProps struct {
 			Image struct {
 				URL string `json:"url"`
 			} `json:"image"`
+			Duration    string `json:"duration"`
 			LockedLabel string `json:"lockedLabel"`
 		} `json:"media"`
 		Meta struct {
@@ -219,6 +220,7 @@ type websiteDataProps struct {
 		Image struct {
 			URL string `json:"url"`
 		} `json:"image"`
+		Duration    string `json:"duration"`
 		LockedLabel string `json:"lockedLabel"`
 		Video       struct {
 			Config struct {
@@ -476,10 +478,11 @@ func GetEpisodes(ctx context.Context, season Season) (episodes []Episode, season
 			}
 			res = append(res, Episode{
 				EpisodeMetadata: EpisodeMetadata{
-					SeasonNumber:    seasonNum,
-					EpisodeNumber:   episodeNum,
-					Language:        season.Language,
-					Unavailable:     v.Media.LockedLabel != "",
+					SeasonNumber:  seasonNum,
+					EpisodeNumber: episodeNum,
+					Language:      season.Language,
+					Unavailable: v.Media.LockedLabel != "" ||
+						v.Media.Duration == "00:00",
 					RawThumbnailURL: v.Media.Image.URL,
 					Title:           v.Meta.SubHeader,
 					Description:     v.Meta.Description,
@@ -518,10 +521,12 @@ func GetEpisode(ctx context.Context, regionInfo RegionInfo, url string) (Episode
 
 	return Episode{
 		EpisodeMetadata: EpisodeMetadata{
-			SeasonNumber:    seasonNum,
-			EpisodeNumber:   episodeNum,
-			Language:        language,
-			Unavailable:     props.Media.UnavailableSlate.Title != "",
+			SeasonNumber:  seasonNum,
+			EpisodeNumber: episodeNum,
+			Language:      language,
+			Unavailable: props.Media.UnavailableSlate.Title != "" ||
+				props.Media.LockedLabel != "" ||
+				props.Media.Duration == "00:00",
 			RawThumbnailURL: props.Media.Image.URL,
 			Title:           props.Media.Video.Config.Title,
 			Description:     props.Meta.Description,
@@ -538,6 +543,7 @@ type searchData struct {
 				Image struct {
 					URL string `json:"url"`
 				} `json:"image"`
+				Duration    string `json:"duration"`
 				LockedLabel string `json:"lockedLabel"`
 			} `json:"media"`
 			Meta struct {
@@ -599,10 +605,11 @@ func Search(
 			return nil, fmt.Errorf("get search result language: %w", err)
 		}
 		res = append(res, EpisodeMetadata{
-			SeasonNumber:    seasonNum,
-			EpisodeNumber:   episodeNum,
-			Language:        urlLang,
-			Unavailable:     v.Media.LockedLabel != "",
+			SeasonNumber:  seasonNum,
+			EpisodeNumber: episodeNum,
+			Language:      urlLang,
+			Unavailable: v.Media.LockedLabel != "" ||
+				v.Media.Duration == "00:00",
 			RawThumbnailURL: "https:" + v.Media.Image.URL,
 			Title:           v.Meta.SubHeader,
 			Description:     v.Meta.Description,
