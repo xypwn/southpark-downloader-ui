@@ -348,7 +348,7 @@ func NewDownloads(dls *logic.Downloads, mobile bool, cfgClient *data.Client[*log
 	sel.SetSelectedIndex(0)
 
 	var clearFiltersButton *widget.Button
-	content := container.NewMax()
+	content := container.NewStack()
 	{
 		clearFiltersButton = widget.NewButtonWithIcon(
 			"Clear Filters",
@@ -391,7 +391,7 @@ func NewDownloads(dls *logic.Downloads, mobile bool, cfgClient *data.Client[*log
 			),
 		)
 
-		placeholder := container.NewMax()
+		placeholder := container.NewStack()
 
 		var lock sync.Mutex
 		init := true

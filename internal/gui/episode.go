@@ -100,7 +100,7 @@ func NewEpisode(
 			nil,
 		),
 		placeholderImage:  canvas.NewImageFromResource(theme.FileImageIcon()),
-		thumbnailImageCnt: container.NewMax(),
+		thumbnailImageCnt: container.NewStack(),
 		thumbnailProgress: widget.NewProgressBarInfinite(),
 		thumbnailOverlay:  canvas.NewRectangle(color.RGBA{16, 16, 16, 160}),
 		thumbnailText:     canvas.NewText("", color.RGBA{255, 255, 255, 255}),
@@ -117,7 +117,9 @@ func NewEpisode(
 
 	res.placeholderImage.FillMode = canvas.ImageFillContain
 
+	res.thumbnailProgress.Start()
 	res.thumbnailProgress.Hide()
+	res.progressInfinite.Start()
 	res.progressInfinite.Hide()
 	res.progressDiscrete.Hide()
 	res.progressDiscrete.TextFormatter = func() string { return "" }
@@ -130,14 +132,14 @@ func NewEpisode(
 	res.thumbnailSize = fyne.NewSize(192, 108)
 	res.placeholderImage.SetMinSize(res.thumbnailSize)
 
-	thumbnail := container.NewMax(
+	thumbnail := container.NewStack(
 		res.placeholderImage,
 		res.thumbnailImageCnt,
 		res.thumbnailOverlay,
 		res.thumbnailText,
 		container.NewBorder(
 			nil,
-			container.NewMax(
+			container.NewStack(
 				res.thumbnailProgress,
 				res.progressInfinite,
 				res.progressDiscrete,

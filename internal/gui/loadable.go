@@ -30,9 +30,11 @@ func NewLoadable(
 	asyncFn func(ctx context.Context) (fyne.CanvasObject, error),
 	setClipboard func(string),
 ) *Loadable {
+	progress := widget.NewProgressBarInfinite()
+	progress.Start()
 	res := &Loadable{
 		loader: container.NewBorder(
-			widget.NewProgressBarInfinite(),
+			progress,
 			nil,
 			nil,
 			nil,
@@ -40,7 +42,7 @@ func NewLoadable(
 		retryBtn: widget.NewButtonWithIcon("Retry", theme.ViewRefreshIcon(), func() {}),
 		errText:  widget.NewLabel(""),
 		copyBtn:  widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {}),
-		content:  container.NewMax(),
+		content:  container.NewStack(),
 	}
 	res.ExtendBaseWidget(res)
 
@@ -53,8 +55,7 @@ func NewLoadable(
 	}
 	res.copyBtn.Importance = widget.LowImportance
 
-	var task *asynctask.AsyncTask[struct{}, struct{}, fyne.CanvasObject]
-	task = asynctask.New(
+	task := asynctask.New(
 		ctx,
 		func(ctx context.Context, _ struct{}, _ func(struct{})) (fyne.CanvasObject, error) {
 			return asyncFn(ctx)
@@ -95,7 +96,7 @@ func NewLoadable(
 		nil,
 	)
 
-	res.obj = container.NewMax(res.loader, res.retry, res.content)
+	res.obj = container.NewStack(res.loader, res.retry, res.content)
 
 	res.loader.Show()
 	res.retry.Hide()

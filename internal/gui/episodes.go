@@ -147,7 +147,7 @@ func NewEpisodesPanel(
 
 			cleanupEpisodesFn := func() {}
 
-			episodes := container.NewMax()
+			episodes := container.NewStack()
 
 			seasonLists := make(map[sp.Language]*widget.List)
 			var selectedSeason atomic.Int32
@@ -185,7 +185,7 @@ func NewEpisodesPanel(
 				languageOpts[i] = v.String()
 			}
 
-			seasonsCnt := container.NewMax()
+			seasonsCnt := container.NewStack()
 
 			type searchQuery struct {
 				Language sp.Language
@@ -249,7 +249,7 @@ func NewEpisodesPanel(
 				split.SetOffset(0.1)
 			}
 
-			mainCnt := container.NewMax(split)
+			mainCnt := container.NewStack(split)
 
 			var clearSearchButton *widget.Button
 			var cleanupSearchResultsFns []func()
