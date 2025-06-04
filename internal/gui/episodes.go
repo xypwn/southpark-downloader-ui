@@ -67,6 +67,54 @@ func NewEpisodeList(
 				}
 
 				vbox := container.NewVBox()
+
+				var episodeWidgets []*Episode
+
+				downloadAllButton := widget.NewButtonWithIcon("Download All", theme.DownloadIcon(), nil)
+
+				checkAllDownloaded := func() bool {
+					allDownloaded := true
+					for i, epWid := range episodeWidgets {
+						if eps[i].Unavailable {
+							continue
+						}
+
+						if !epWid.isDownloaded {
+							allDownloaded = false
+							break
+						}
+					}
+					return allDownloaded
+				}
+
+				updateButtonState := func() {
+					if checkAllDownloaded() {
+						downloadAllButton.SetText("All Episodes Downloaded")
+						downloadAllButton.Disable()
+					} else {
+						downloadAllButton.SetText("Download All")
+						downloadAllButton.Enable()
+					}
+				}
+
+				downloadAllButton.OnTapped = func() {
+					for i, epWid := range episodeWidgets {
+						if eps[i].Unavailable {
+							continue
+						}
+
+						if epWid.isDownloaded {
+							continue
+						}
+
+						if epWid.isDownloading {
+							continue
+						}
+
+						epWid.button.OnTapped()
+					}
+				}
+
 				for _, v := range eps {
 					ep := v
 					epWid, destroy := NewEpisode(
@@ -82,13 +130,26 @@ func NewEpisodeList(
 						false,
 						true,
 						mobile,
+						updateButtonState,
 					)
+					episodeWidgets = append(episodeWidgets, epWid)
 					destroyMtx.Lock()
 					destroyFns = append(destroyFns, destroy)
 					destroyMtx.Unlock()
 					vbox.Add(container.NewPadded(epWid))
 				}
-				return container.NewVScroll(container.NewPadded(vbox)), nil
+
+				updateButtonState()
+
+				content := container.NewBorder(
+					nil,
+					container.NewPadded(downloadAllButton),
+					nil,
+					nil,
+					container.NewPadded(vbox),
+				)
+
+				return container.NewVScroll(content), nil
 			},
 			setClipboard,
 		),
@@ -287,6 +348,7 @@ func NewEpisodesPanel(
 										true,
 										true,
 										mobile,
+										nil,
 									)
 									vbox.Add(ep)
 									cleanupSearchResultsFns = append(cleanupSearchResultsFns, destroy)
