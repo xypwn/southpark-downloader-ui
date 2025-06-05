@@ -10,6 +10,7 @@ If you have any request or criticism in particular, feel free to open an issue (
 - [Windows (64-bit)](https://github.com/xypwn/southpark-downloader-ui/releases/latest/download/southpark-downloader-ui-windows-amd64.exe)
 - [Linux (64-bit)](https://github.com/xypwn/southpark-downloader-ui/releases/latest/download/southpark-downloader-ui-linux-amd64.tar.xz)
 - [MacOS (Intel)](https://github.com/xypwn/southpark-downloader-ui/releases/latest/download/southpark-downloader-ui-macos-amd64.tar.gz)
+- [MacOS (Apple Silicon)](https://github.com/xypwn/southpark-downloader-ui/releases/latest/download/southpark-downloader-ui-macos-arm64.tar.gz)
 
 ### Windows
 Open the .exe file.
