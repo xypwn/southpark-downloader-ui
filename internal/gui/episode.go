@@ -42,6 +42,9 @@ type Episode struct {
 	description       *ellipsislabel.EllipsisLabel
 	button            *widget.Button
 	obj               fyne.CanvasObject
+	isDownloaded      bool
+	isDownloading     bool
+	onStatusChange    func()
 }
 
 func NewEpisode(
@@ -55,6 +58,7 @@ func NewEpisode(
 	showSeasonNumber bool,
 	showEpisodeNumber bool,
 	mobile bool,
+	onStatusChange func(),
 ) (ep *Episode, destroy func()) {
 	var doDestroyMtx sync.Mutex
 	doDestroy := func() {}
@@ -110,6 +114,7 @@ func NewEpisode(
 		title:             ellipsislabel.New(""),
 		description:       ellipsislabel.New(""),
 		button:            widget.NewButtonWithIcon("", theme.MoreHorizontalIcon(), func() {}),
+		onStatusChange:    onStatusChange,
 	}
 	res.ExtendBaseWidget(res)
 
@@ -224,6 +229,8 @@ func NewEpisode(
 
 		listenToDL := func() (destroy func()) {
 			onProgress := func(dp logic.DownloadProgress) {
+				prevDownloaded := res.isDownloaded
+
 				if dp.Status == logic.DownloadStatusDone {
 					res.progressDiscrete.Hide()
 					res.progressInfinite.Hide()
@@ -231,6 +238,12 @@ func NewEpisode(
 					res.button.SetIcon(theme.MediaPlayIcon())
 					res.button.OnTapped = func() {
 						open.Start(dl.Params().OutputVideoPath)
+					}
+					res.isDownloaded = true
+					res.isDownloading = false
+
+					if res.onStatusChange != nil && !prevDownloaded {
+						res.onStatusChange()
 					}
 					return
 				}
@@ -241,12 +254,24 @@ func NewEpisode(
 					res.progressText.Hide()
 					res.button.SetIcon(theme.ViewRefreshIcon())
 					res.button.OnTapped = doDownload
+					res.isDownloaded = false
+					res.isDownloading = false
+
+					if res.onStatusChange != nil && prevDownloaded {
+						res.onStatusChange()
+					}
 					return
 				}
 
 				res.button.SetIcon(theme.CancelIcon())
 				res.button.OnTapped = func() {
 					dl.Cancel()
+				}
+				res.isDownloaded = false
+				res.isDownloading = true
+
+				if res.onStatusChange != nil && prevDownloaded {
+					res.onStatusChange()
 				}
 
 				if dp.Value == -1 {
@@ -340,6 +365,17 @@ func NewEpisode(
 			doDestroyMtx.Lock()
 			doDestroy = listenToDL()
 			doDestroyMtx.Unlock()
+
+			if dl.Progress().Status == logic.DownloadStatusDone {
+				res.isDownloaded = true
+				res.isDownloading = false
+			} else if dl.Progress().Status == logic.DownloadStatusInterrupted {
+				res.isDownloaded = false
+				res.isDownloading = false
+			} else {
+				res.isDownloaded = false
+				res.isDownloading = true
+			}
 		}
 	}
 

@@ -51,7 +51,7 @@ If there's no error message, you should now have an executable binary called `so
 - [X] Extract downloader and cache logic into internal package & despaghettify
   - [X] Make downloads persistent after closing the app
 - [X] Allow directly downloading search results & fix search in general
-- [ ] Add 'Download All' button to add all episodes of the season to the queue
+- [X] Add 'Download All' button to add all episodes of the season to the queue
 - [ ] Make Android usable and useful
   - Figure out a way to save files without direct access to SAF
 - [ ] Nitpicks
