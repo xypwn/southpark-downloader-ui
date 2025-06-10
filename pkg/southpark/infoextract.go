@@ -51,6 +51,7 @@ type Language int
 const (
 	LanguageEnglish Language = iota
 	LanguageGerman
+	LanguageSpanish
 )
 
 func LanguageFromString(s string) (lang Language, ok bool) {
@@ -59,6 +60,8 @@ func LanguageFromString(s string) (lang Language, ok bool) {
 		return LanguageEnglish, true
 	case "DE", "GERMAN", "DEUTSCH":
 		return LanguageGerman, true
+	case "ES", "SPANISH", "ESPAÑOL":
+		return LanguageSpanish, true
 	default:
 		return 0, false
 	}
@@ -70,6 +73,8 @@ func (l Language) String() string {
 		return "English"
 	case LanguageGerman:
 		return "German"
+	case LanguageSpanish:
+		return "Spanish"
 	default:
 		panic("Language.String called on invalid language")
 	}
@@ -84,6 +89,7 @@ const (
 	HostSPSDK               // southparkstudios.dk
 	HostSPCCCOM             // southpark.cc.com
 	HostSPNL                // southpark.nl
+	HostSPLAT               // southpark.lat
 )
 
 func HostFromString(hostStr string) (host Host, ok bool) {
@@ -100,6 +106,8 @@ func HostFromString(hostStr string) (host Host, ok bool) {
 		return HostSPCCCOM, true
 	case "southpark.nl":
 		return HostSPNL, true
+	case "southpark.lat":
+		return HostSPLAT, true
 	default:
 		return 0, false
 	}
@@ -119,6 +127,8 @@ func (h Host) String() string {
 		return "southpark.cc.com"
 	case HostSPNL:
 		return "www.southpark.nl"
+	case HostSPLAT:
+		return "www.southpark.lat"
 	default:
 		panic("Host.String called on invalid host")
 	}
@@ -156,10 +166,11 @@ func GetRegionInfo(ctx context.Context) (RegionInfo, error) {
 		if host == HostSPDE {
 			res.AvailableLanguages = append(res.AvailableLanguages, LanguageGerman)
 			res.RequiresExplicitEN = true
-			return res, nil
-		} else {
-			return res, nil
+		} else if host == HostSPLAT {
+			res.AvailableLanguages = append(res.AvailableLanguages, LanguageSpanish)
+			res.RequiresExplicitEN = true
 		}
+		return res, nil
 	} else {
 		return RegionInfo{}, fmt.Errorf("unsupported website region: %v", redirHost)
 	}
