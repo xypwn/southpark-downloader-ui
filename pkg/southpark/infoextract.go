@@ -52,6 +52,7 @@ const (
 	LanguageEnglish Language = iota
 	LanguageGerman
 	LanguageSpanish
+	LanguageBrazilianPortuguese
 )
 
 func LanguageFromString(s string) (lang Language, ok bool) {
@@ -61,6 +62,8 @@ func LanguageFromString(s string) (lang Language, ok bool) {
 	case "DE", "GERMAN", "DEUTSCH":
 		return LanguageGerman, true
 	case "ES", "SPANISH", "ESPAÑOL":
+		return LanguageSpanish, true
+	case "PB", "BRAZILIAN PORTUGUESE", "PORTUGUÊS BRASILEIRO":
 		return LanguageSpanish, true
 	default:
 		return 0, false
@@ -75,6 +78,8 @@ func (l Language) String() string {
 		return "German"
 	case LanguageSpanish:
 		return "Spanish"
+	case LanguageBrazilianPortuguese:
+		return "Brazilian Portuguese"
 	default:
 		panic("Language.String called on invalid language")
 	}
@@ -83,13 +88,14 @@ func (l Language) String() string {
 type Host int
 
 const (
-	HostSPDE    Host = iota // southpark.de
-	HostSPSCOM              // southparkstudios.com
-	HostSPSNU               // southparkstudios.nu
-	HostSPSDK               // southparkstudios.dk
-	HostSPCCCOM             // southpark.cc.com
-	HostSPNL                // southpark.nl
-	HostSPLAT               // southpark.lat
+	HostSPDE     Host = iota // southpark.de
+	HostSPSCOM               // southparkstudios.com
+	HostSPSNU                // southparkstudios.nu
+	HostSPSDK                // southparkstudios.dk
+	HostSPCCCOM              // southpark.cc.com
+	HostSPNL                 // southpark.nl
+	HostSPLAT                // southpark.lat
+	HostSPSCOMBR             // southparkstudios.com.br
 )
 
 func HostFromString(hostStr string) (host Host, ok bool) {
@@ -108,6 +114,8 @@ func HostFromString(hostStr string) (host Host, ok bool) {
 		return HostSPNL, true
 	case "southpark.lat":
 		return HostSPLAT, true
+	case "southparkstudios.com.br":
+		return HostSPSCOMBR, true
 	default:
 		return 0, false
 	}
@@ -129,6 +137,8 @@ func (h Host) String() string {
 		return "www.southpark.nl"
 	case HostSPLAT:
 		return "www.southpark.lat"
+	case HostSPSCOMBR:
+		return "www.southparkstudios.com.br"
 	default:
 		panic("Host.String called on invalid host")
 	}
@@ -163,11 +173,15 @@ func GetRegionInfo(ctx context.Context) (RegionInfo, error) {
 			Host:               host,
 			AvailableLanguages: []Language{LanguageEnglish},
 		}
-		if host == HostSPDE {
+		switch host {
+		case HostSPDE:
 			res.AvailableLanguages = append(res.AvailableLanguages, LanguageGerman)
 			res.RequiresExplicitEN = true
-		} else if host == HostSPLAT {
+		case HostSPLAT:
 			res.AvailableLanguages = append(res.AvailableLanguages, LanguageSpanish)
+			res.RequiresExplicitEN = true
+		case HostSPSCOMBR:
+			res.AvailableLanguages = append(res.AvailableLanguages, LanguageBrazilianPortuguese)
 			res.RequiresExplicitEN = true
 		}
 		return res, nil

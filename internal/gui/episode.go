@@ -333,7 +333,7 @@ func NewEpisode(
 			outputBase := strings.NewReplacer(
 				"$S", fmt.Sprintf("%02v", ep.SeasonNumber),
 				"$E", fmt.Sprintf("%02v", ep.EpisodeNumber),
-				"$L", ep.Language.String(),
+				"$L", strings.ReplaceAll(ep.Language.String(), " ", "_"),
 				"$T", toValidFilename(ep.Title),
 				"$Q", maxQuality.String(),
 			).Replace(outputFilePattern)
