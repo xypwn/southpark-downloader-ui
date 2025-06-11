@@ -43,7 +43,7 @@ func DefaultQualities() []Quality {
 func (v Quality) String() string {
 	switch v {
 	case QualityBest:
-		return "Best"
+		return "BestQuality"
 	default:
 		return fmt.Sprintf("%vp", int(v))
 	}
