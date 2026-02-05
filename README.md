@@ -23,6 +23,10 @@ Open a terminal in the extracted directory that contains the `Makefile`.
 
 Run `sudo make install` (system-wide) or `make user-install` (local).
 
+#### NixOS:
+
+Run `nix run github:xypwn/southpark-downloader-ui` to run the application without downloading it manually.
+
 ### MacOS
 Extract the archive.
 
