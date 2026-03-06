@@ -35,7 +35,7 @@
           version = "latest";
 
           src = pkgs.lib.cleanSource ./.;
-          vendorHash = "sha256-YK0vZpMdxSeKPXY/qRVX4eNrEcW2rpcxySudglwK4oc=";
+          vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
           subPackages = ["cmd/southpark-downloader-ui"];
 
           nativeBuildInputs = [pkgs.pkg-config pkgs.makeWrapper];
