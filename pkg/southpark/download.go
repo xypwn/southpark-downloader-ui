@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"slices"
 )
 
 type DownloaderStatus int
@@ -145,10 +144,19 @@ func (d *Downloader) Do() error {
 
 		var tsSegs []SegmentFile
 		for i, seg := range stream.Video.Segments {
+			skip := false
+			if exclRule.Season != 0 {
+				for _, si := range exclRule.SkipVideoSegments {
+					if si == i {
+						skip = true
+						break
+					}
+				}
+			}
 			tsSegs = append(tsSegs, SegmentFile{
 				Filename: getSegFileName(i),
 				Duration: seg.Duration,
-				Skip:     exclRule.Season != 0 && slices.Contains(exclRule.SkipVideoSegments, i),
+				Skip:     skip,
 			})
 		}
 
