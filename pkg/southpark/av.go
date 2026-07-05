@@ -15,6 +15,7 @@ import (
 type SegmentFile struct {
 	Filename string
 	Duration float64
+	Skip     bool // HACK for certain episodes with faulty segments
 }
 
 func ConvertTSAndAACToMP4(tsInput []SegmentFile, aacInput []SegmentFile, mp4Output io.WriteSeeker, onProgress func(progress float64)) error {
@@ -92,7 +93,7 @@ func ConvertTSAndAACToMP4(tsInput []SegmentFile, aacInput []SegmentFile, mp4Outp
 				aacFrameBuf = append(aacFrameBuf, frame)
 			})
 		}
-		{
+		if !tsInput[i].Skip {
 			data, err := os.ReadFile(tsInput[i].Filename)
 			if err != nil {
 				return err
@@ -104,9 +105,10 @@ func ConvertTSAndAACToMP4(tsInput []SegmentFile, aacInput []SegmentFile, mp4Outp
 					return fmt.Errorf("MPEG-TS demuxer: %w", err)
 				}
 			}
+
+			aHLSTime += aacInput[i].Duration
 		}
 		onProgress(float64(i) / float64(len(tsInput)))
-		aHLSTime += aacInput[i].Duration
 	}
 
 	muxer.WriteTrailer()
