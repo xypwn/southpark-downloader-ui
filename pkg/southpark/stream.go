@@ -20,6 +20,24 @@ import (
 	"github.com/xypwn/southpark-downloader-ui/pkg/ioutils"
 )
 
+type VideoServiceError struct {
+	FriendlyMessage string
+	Diagnostics     string
+	ErrorMessage    string
+}
+
+func (e *VideoServiceError) Error() string {
+	if e.FriendlyMessage == "" {
+		return fmt.Sprintf("unknown: \"%s\" (%s)", e.ErrorMessage, e.Diagnostics)
+	}
+	return fmt.Sprintf("%s (%s)", e.FriendlyMessage, e.Diagnostics)
+}
+
+var videoServiceErrorMessages = map[string]string{
+	"60101": "video is not found or no longer available due to date or rights restrictions",
+	"60504": "video is not available from your location",
+}
+
 // Processes strings like METHOD=AES-128,URI="https://.../",IV=0xDEADBEEF
 func getExtM3UInfo(data string, v any) error {
 	rv := reflect.ValueOf(v)
@@ -157,6 +175,11 @@ type videoServiceDoc struct {
 			ID       string `json:"id"`
 		} `json:"chapters"`
 	} `json:"content"`
+	Error struct {
+		SlateUrl     string `json:"slateurl"`
+		Diagnostics  string `json:"diagnostics"`
+		ErrorMessage string `json:"errormessage"`
+	} `json:"error"`
 }
 
 func getMediaMasterURL(ctx context.Context, url string) (string, error) {
@@ -189,6 +212,13 @@ func getMediaMasterURL(ctx context.Context, url string) (string, error) {
 	err = json.Unmarshal(dataJSON, &data)
 	if err != nil {
 		return "", fmt.Errorf("parse video service doc: %w", err)
+	}
+	if data.Error.Diagnostics != "" {
+		err := &VideoServiceError{Diagnostics: data.Error.Diagnostics, ErrorMessage: data.Error.ErrorMessage}
+		if msg, ok := videoServiceErrorMessages[data.Error.Diagnostics]; ok {
+			err.FriendlyMessage = msg
+		}
+		return "", err
 	}
 
 	return data.Stitchedstream.Source, nil

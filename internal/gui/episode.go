@@ -3,6 +3,7 @@ package gui
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image/color"
 	"path"
@@ -14,6 +15,7 @@ import (
 	"github.com/xypwn/southpark-downloader-ui/pkg/data"
 	"github.com/xypwn/southpark-downloader-ui/pkg/gui/ellipsislabel"
 	"github.com/xypwn/southpark-downloader-ui/pkg/httputils"
+	"github.com/xypwn/southpark-downloader-ui/pkg/southpark"
 	sp "github.com/xypwn/southpark-downloader-ui/pkg/southpark"
 
 	"fyne.io/fyne/v2"
@@ -348,7 +350,18 @@ func NewEpisode(
 						OutputVideoPath:    path.Join(downloadPath, outputBase+".mp4"),
 						OutputSubtitlePath: path.Join(downloadPath, outputBase+".vtt"),
 					},
-					onError,
+					func(err error) {
+						if vserr := (&southpark.VideoServiceError{}); errors.As(err, &vserr) {
+							msg := vserr.Error()
+							if len(msg) > 0 {
+								msg = strings.ToUpper(string(msg[0])) + msg[1:]
+							}
+							msg += "."
+							onInfo("Video unavailable", msg)
+						} else {
+							onError(err)
+						}
+					},
 				)
 
 				doDestroyMtx.Lock()
